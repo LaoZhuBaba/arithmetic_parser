@@ -1,6 +1,6 @@
 A simple recursive descent parser for basic arithmetic
 
-Supports addition (+), subtraction (-), multiplication (*) and division with correct order for evaluation
+Supports addition (+), subtraction (-), multiplication (*) and division (/) with correct order for evaluation
 
 Parentheses are interpreted correctly and spaces between tokens are ignored.
 
