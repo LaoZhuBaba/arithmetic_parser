@@ -84,6 +84,9 @@ outer:
 			case Multiply:
 				exprVal = lVal * rVal
 			case Divide:
+				if rVal == 0 {
+					return nil, fmt.Errorf("division by zero")
+				}
 				exprVal = lVal / rVal
 			default:
 				return nil, fmt.Errorf("invalid operator in multiply/divide expression: %v", tok)
@@ -115,7 +118,12 @@ outer:
 
 // Eval accepts a list of elements representing an arithmetic expression
 // and returns the result as a pointer to an int.
-func Eval(elements []Element) (*int, error) {
+func Eval(e []Element) (*int, error) {
+	// Make a copy of the slice so we can modify it without affecting the original
+	// Fuzz testing requires that the slice be immutable.
+	elements := make([]Element, len(e))
+	copy(elements, e)
+
 	// Evaluate parenthetical expressions first
 	elem, err := evalParen(elements)
 	if err != nil {
