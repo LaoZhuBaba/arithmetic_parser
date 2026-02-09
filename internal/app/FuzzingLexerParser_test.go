@@ -3,6 +3,8 @@ package app
 import (
 	"strings"
 	"testing"
+
+	"math/rand/v2"
 )
 
 // FuzzLexAndEval fuzzes the lexer+parser pipeline.
@@ -55,7 +57,14 @@ func FuzzLexAndEval(f *testing.F) {
 		// Normalize: lexer ignores spaces, so rebuild expression from tokens.
 		var b strings.Builder
 		for _, e := range elems {
+			// Added randomInt by hand to introduce random space characters
+			randomInt := rand.IntN(30)
 			b.WriteString(e.tokenValue)
+			if randomInt < 10 {
+				for i := 0; i < randomInt; i++ {
+					b.WriteRune(' ')
+				}
+			}
 		}
 		normalized := b.String()
 
