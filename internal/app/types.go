@@ -64,6 +64,9 @@ type operationGroup struct {
 	associativity associativity
 }
 
+// Define operator precedence.  The tokens field is a list that defines operations that share the same precedence.
+// Operations at the same parenthesis level that have the same precedence are evaluated from left to right.
+// E.g., '48 / 3 / 8 / 2'  is evaluated as '((48 / 3) / 8) / 2'
 var operationGroups = map[precedence]operationGroup{
 	precedenceExponent:       {tokens: []token{Exponent}, associativity: rightAssociative},
 	precedenceMultiplyDivide: {tokens: []token{Multiply, Divide}, associativity: leftAssociative},
