@@ -173,7 +173,9 @@ func findRightOperator(elements []Element, operators []token) (token, int) {
 	return NullToken, -1
 }
 
+// getOperatorElements returns the elements that make up an operator expression: [number, operator, number]
 func getOperatorElements(idx int, elements []Element) (subExpr []Element, err error) {
+	// elements[idx] should be an operator token so there must be a character before and after it
 	if idx < 1 || idx >= len(elements)-1 {
 		return nil, fmt.Errorf("out of range with index %d and elements: %v", idx, elements)
 	}
