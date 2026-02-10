@@ -49,14 +49,24 @@ var operations = map[token]struct {
 	Exponent: {description: "Exponent", fn: func(a, b int) (int, error) { return int(math.Pow(float64(a), float64(b))), nil }},
 }
 
-var opTokens = map[token]rune{
-	Plus:     '+',
-	Minus:    '-',
-	Multiply: '*',
-	Divide:   '/',
-	LParen:   '(',
-	RParen:   ')',
-	Exponent: '^',
+//var opTokens = map[token]rune{
+//	Plus:     '+',
+//	Minus:    '-',
+//	Multiply: '*',
+//	Divide:   '/',
+//	LParen:   '(',
+//	RParen:   ')',
+//	Exponent: '^',
+//}
+
+var opTokens = map[rune]token{
+	'+': Plus,
+	'-': Minus,
+	'*': Multiply,
+	'/': Divide,
+	'(': LParen,
+	')': RParen,
+	'^': Exponent,
 }
 
 type operationGroup struct {
