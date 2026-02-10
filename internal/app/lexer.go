@@ -13,8 +13,8 @@ func GetElements(s string) (e []Element, err error) {
 	e = []Element{}
 	// Iterate over each rune in the string (not each byte)
 outer:
-	for i, c := range s {
-		if c == ' ' {
+	for idx, char := range s {
+		if char == ' ' {
 			continue
 		}
 		// Because we are iterating over a range, we can't increment i within the for loop.
@@ -24,19 +24,19 @@ outer:
 			continue
 		}
 
-		for k, v := range opTokens {
-			if string(c) == v {
-				e = append(e, Element{k, v})
-				// Once we've found and handled an operator that matches the rune c, we can skip to the next rune
+		for opTok, opChar := range opTokens {
+			if char == opChar {
+				e = append(e, Element{opTok, string(opChar)})
+				// Once we've found and handled an operator that matches the rune char, we can skip to the next rune
 				continue outer
 			}
 		}
 
-		if c < '0' || c > '9' {
-			return nil, fmt.Errorf("invalid character: %c", c)
+		if char < '0' || char > '9' {
+			return nil, fmt.Errorf("invalid character: %char", char)
 		}
 
-		remaining := s[i:]
+		remaining := s[idx:]
 
 		var numStr string
 

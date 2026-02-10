@@ -49,14 +49,14 @@ var operations = map[token]struct {
 	Exponent: {description: "Exponent", fn: func(a, b int) (int, error) { return int(math.Pow(float64(a), float64(b))), nil }},
 }
 
-var opTokens = map[token]string{
-	Plus:     "+",
-	Minus:    "-",
-	Multiply: "*",
-	Divide:   "/",
-	LParen:   "(",
-	RParen:   ")",
-	Exponent: "^",
+var opTokens = map[token]rune{
+	Plus:     '+',
+	Minus:    '-',
+	Multiply: '*',
+	Divide:   '/',
+	LParen:   '(',
+	RParen:   ')',
+	Exponent: '^',
 }
 
 type operationGroup struct {
@@ -66,7 +66,7 @@ type operationGroup struct {
 
 // Define operator precedence.  The tokens field is a list that defines operations that share the same precedence.
 // Operations at the same parenthesis level that have the same precedence are evaluated from left to right.
-// E.g., '48 / 3 / 8 / 2'  is evaluated as '((48 / 3) / 8) / 2'
+// E.g., '48 / 3 / 8 / 2' is evaluated as '((48 / 3) / 8) / 2'
 var operationGroups = map[precedence]operationGroup{
 	precedenceExponent:       {tokens: []token{Exponent}, associativity: rightAssociative},
 	precedenceMultiplyDivide: {tokens: []token{Multiply, Divide}, associativity: leftAssociative},
