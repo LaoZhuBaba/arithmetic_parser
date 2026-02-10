@@ -26,7 +26,8 @@ const (
 	rightAssociative
 )
 
-// The order below is significant!
+// The following values define the order in which groups of operators are evaluated.
+// The first defined value must be 0 and increase consecutively
 const (
 	precedenceExponent precedence = iota
 	precedenceMultiplyDivide

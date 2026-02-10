@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 )
 
@@ -111,21 +110,16 @@ func Eval(e []Element) (*int, error) {
 		return nil, err
 	}
 
-	// This is a bit awkward but we need the keys of operationGroups sorted in ascending order
-	// to ensure precedence levels are followed correctly
-	sortedPrecedence := make([]precedence, 0, len(operationGroups))
-	for k := range operationGroups {
-		sortedPrecedence = append(sortedPrecedence, k)
-	}
-
-	slices.Sort(sortedPrecedence)
-
 	// operationGroups is the map of precedence levels to the operators that can be used in that level
 	// Each key is a precedence level that refers to a group of operators that have the same precedence
 	// and associativity.  For example, multiplication and division share the same precedence level called
-	// "multiplyDivide" and they are both left associative.
-	for _, opGroupKey := range sortedPrecedence {
-		elem, err = evalArithmetic(elem, opGroupKey)
+	// "multiplyDivide" and they are both left associative.  It is assumed that the first precedence
+	// to be evaluated will have a value of 0 and others will have consecutive values.
+	for prec := precedence(0); ; prec++ {
+		if _, ok := operationGroups[prec]; !ok {
+			break
+		}
+		elem, err = evalArithmetic(elem, prec)
 		if err != nil {
 			return nil, err
 		}
