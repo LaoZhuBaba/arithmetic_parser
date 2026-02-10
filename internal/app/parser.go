@@ -2,14 +2,8 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
-)
-
-type precedence int
-
-const (
-	precedenceMultiplyDivide precedence = iota
-	precedencePlusMinus
 )
 
 // evalParen reduces parenthetical expressions to numbers, calling Eval() for subexpressions
@@ -41,32 +35,27 @@ func evalParen(elements []Element) ([]Element, error) {
 	return elements, nil
 }
 
-// evalArithmetic reduces arithmetic expressions to a single number element, calling Eval() for
-// subexpressions.  This implementation could easily be extended to support any left associate
-// infix operator.  E.g., '10 - 3 - 4' is evaluated as (10 - 3) - 4.  For a right associative
-// operator you could enhance the findNextOperator() function to take an associativity parameter.
+// evalArithmetic reduces arithmetic expressions to a single number element, calling Eval() for subexpressions.
 func evalArithmetic(elements []Element, precedence precedence) ([]Element, error) {
-	// We need the outer label because switch/case has its own break scope.
-outer:
 	for {
 		var exprVal, lVal, rVal, idx int
 		var tok token
 
-		// Get the index of the next multiply or divide operator and the token
-		switch precedence {
-		case precedenceMultiplyDivide:
-			tok, idx = findNextOperator(elements, []token{Multiply, Divide})
-			if tok == NullToken {
-				break outer
-			}
-		case precedencePlusMinus:
-			tok, idx = findNextOperator(elements, []token{Plus, Minus})
-			if tok == NullToken {
-				break outer
-			}
+		switch operationGroups[precedence].associativity {
+		case rightAssociative:
+			// Get the index of the next operator and the token
+			tok, idx = findRightOperator(elements, operationGroups[precedence].tokens)
+
+		case leftAssociative:
+			// Get the index of the next operator and the token
+			tok, idx = findLeftOperator(elements, operationGroups[precedence].tokens)
 		}
+		if tok == NullToken {
+			break
+		}
+
 		// Get the elements that make up the expression: [number, operator, number]
-		subExpr, err := findOperatorElements(tok, elements)
+		subExpr, err := getOperatorElements(idx, elements)
 		if err != nil {
 			return nil, err
 		}
@@ -78,34 +67,18 @@ outer:
 		if err != nil {
 			return nil, err
 		}
-		switch precedence {
-		case precedenceMultiplyDivide:
-			switch tok {
-			case Multiply:
-				exprVal = lVal * rVal
-			case Divide:
-				if rVal == 0 {
-					return nil, fmt.Errorf("division by zero")
-				}
-				exprVal = lVal / rVal
-			default:
-				return nil, fmt.Errorf("invalid operator in multiply/divide expression: %v", tok)
-			}
-		case precedencePlusMinus:
-			switch tok {
-			case Plus:
-				exprVal = lVal + rVal
-			case Minus:
-				exprVal = lVal - rVal
-			default:
-				return nil, fmt.Errorf("invalid operator in plus/minus expression: %v", tok)
-			}
-		default:
-			return nil, fmt.Errorf("invalid precedence passed to evalArithmetic(): %v", tok)
+
+		if _, ok := operations[tok]; !ok {
+			return nil, fmt.Errorf("invalid token: %v", tok)
 		}
+		exprVal, err = operations[tok].fn(lVal, rVal)
+		if err != nil {
+			return nil, err
+		}
+
 		// remainder is the slice of elements after the expression being evaluated.
-		// idx+2 is used because idx is the index of the operator token so idx+1 is
-		// the second number token and idx+2 is the start of anything that follows.
+		// idx+2 is used because idx is the index of the operator token, so idx+1 is
+		// the second number token, and idx+2 is the start of anything that follows.
 		remainder := make([]Element, len(elements[idx+2:]))
 		copy(remainder, elements[idx+2:])
 		// idx-1 is the index of the left operand so we are taking everything before the
@@ -130,17 +103,27 @@ func Eval(e []Element) (*int, error) {
 		return nil, err
 	}
 
-	// Next comes multiply & divide, in left to right order
-	elem, err = evalArithmetic(elem, precedenceMultiplyDivide)
-	if err != nil {
-		return nil, err
+	// This is a bit awkward but we need the keys of operationGroups sorted in ascending order
+	// to ensure precedence levels are followed correctly
+	sortedPrecedence := make([]precedence, 0, len(operationGroups))
+	for k := range operationGroups {
+		sortedPrecedence = append(sortedPrecedence, k)
 	}
-	// Now comes plus & minus in left to right order
-	elem, err = evalArithmetic(elem, precedencePlusMinus)
-	if err != nil {
-		return nil, err
+
+	slices.Sort(sortedPrecedence)
+
+	// operationGroups is the map of precedence levels to the operators that can be used in that level
+	// Each key is a precedence level that refers to a group of operators that have the same precedence
+	// and associativity.  For example, multiplication and division share the same precedence level called
+	// "multiplyDivide" and they are both left associative.
+	for _, opGroupKey := range sortedPrecedence {
+		elem, err = evalArithmetic(elem, opGroupKey)
+		if err != nil {
+			return nil, err
+		}
 	}
-	// After that, there should only be one element left: the result
+
+	// After all operation groups have been processed, there should only be one element left: the result
 	if len(elem) != 1 {
 		return nil, fmt.Errorf("invalid expression: %v", elem)
 	}
@@ -151,9 +134,9 @@ func Eval(e []Element) (*int, error) {
 	return &result, nil
 }
 
-// findNextOperator returns the first matching operator and its index from the elements slice or
-// (NullToken, -1) if not found.  NullToken is a sentinel value not an error.
-func findNextOperator(elements []Element, operators []token) (token, int) {
+// findLeftOperator returns the leftmost matching operator and its index from the elements slice or
+// (NullToken, -1) if not found.  NullToken is a sentinel value, not an error.
+func findLeftOperator(elements []Element, operators []token) (token, int) {
 	for i, e := range elements {
 		for _, tok := range operators {
 			if e.token == tok {
@@ -164,34 +147,39 @@ func findNextOperator(elements []Element, operators []token) (token, int) {
 	return NullToken, -1
 }
 
-// findOperatorElements returns the elements that make up an arithmetic expression, including the
-// operator token.
-func findOperatorElements(tok token, elements []Element) (subExpr []Element, err error) {
-	operationStr, ok := operators[tok]
-	if !ok {
-		return nil, fmt.Errorf("invalid token: %v", tok)
-	}
-	for i, e := range elements {
-		if e.token == tok {
-			switch {
-			case i == 0:
-				return nil, fmt.Errorf(
-					"expression cannot begin with %s", operationStr)
-			case i >= len(elements)-1:
-				return nil, fmt.Errorf(
-					"expression cannot end with %s", operationStr)
-			case elements[i-1].token != Number:
-				return nil, fmt.Errorf(
-					"invalid token before %s: expected Number, got %v", operationStr, elements[i-1].token)
-			case elements[i+1].token != Number:
-				return nil, fmt.Errorf(
-					"invalid token after %s: expected Number, got %v", operationStr, elements[i+1].token)
-			default:
-				return elements[i-1 : i+2], nil
+// findRightOperator returns the rightmost matching operator and its index from the elements slice or
+// (NullToken, -1) if not found.  NullToken is a sentinel value, not an error.
+func findRightOperator(elements []Element, operators []token) (token, int) {
+	for i := range elements {
+		reverseIdx := len(elements) - i - 1
+		for _, tok := range operators {
+			if elements[reverseIdx].token == tok {
+				return tok, reverseIdx
 			}
 		}
 	}
-	return nil, fmt.Errorf("operator: %s not found", operationStr)
+	return NullToken, -1
+}
+
+func getOperatorElements(idx int, elements []Element) (subExpr []Element, err error) {
+	if idx < 1 || idx >= len(elements)-1 {
+		return nil, fmt.Errorf("out of range with index %d and elements: %v", idx, elements)
+	}
+	tok := elements[idx].token
+	op, ok := operations[tok]
+	if !ok {
+		return nil, fmt.Errorf("invalid token: %v", tok)
+	}
+	switch {
+	case elements[idx-1].token != Number:
+		return nil, fmt.Errorf(
+			"invalid token before %s: expected Number, got %v", op.description, elements[idx-1].token)
+	case elements[idx+1].token != Number:
+		return nil, fmt.Errorf(
+			"invalid token after %s: expected Number, got %v", op.description, elements[idx+1].token)
+	default:
+		return elements[idx-1 : idx+2], nil
+	}
 }
 
 // findLParen searches for the first left parenthesis in the slice and returns its index

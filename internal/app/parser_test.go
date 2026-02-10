@@ -8,14 +8,14 @@ import (
 func TestFindOperatorElements(t *testing.T) {
 	tests := []struct {
 		name     string
-		tok      token
+		idx      int
 		elements []Element
 		want     []Element
 		wantErr  bool
 	}{
 		{
 			name: "plus - valid in middle",
-			tok:  Plus,
+			idx:  1,
 			elements: []Element{
 				{token: Number, tokenValue: "1"},
 				{token: Plus, tokenValue: "+"},
@@ -30,7 +30,7 @@ func TestFindOperatorElements(t *testing.T) {
 		},
 		{
 			name: "multiply - valid in middle",
-			tok:  Multiply,
+			idx:  1,
 			elements: []Element{
 				{token: Number, tokenValue: "3"},
 				{token: Multiply, tokenValue: "*"},
@@ -44,8 +44,8 @@ func TestFindOperatorElements(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "divide - valid in longer expression (returns first window)",
-			tok:  Divide,
+			name: "divide - valid in longer expression (returns window around idx)",
+			idx:  1,
 			elements: []Element{
 				{token: Number, tokenValue: "8"},
 				{token: Divide, tokenValue: "/"},
@@ -61,8 +61,8 @@ func TestFindOperatorElements(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "error - invalid operator token (Number is not an operator)",
-			tok:  Number,
+			name: "error - invalid operator token at idx (Number is not an operator)",
+			idx:  0,
 			elements: []Element{
 				{token: Number, tokenValue: "1"},
 			},
@@ -70,28 +70,30 @@ func TestFindOperatorElements(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "error - operator at beginning",
-			tok:  Minus,
-			elements: []Element{
-				{token: Minus, tokenValue: "-"},
-				{token: Number, tokenValue: "1"},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "error - operator at end",
-			tok:  Plus,
+			name: "error - idx out of range (negative)",
+			idx:  -1,
 			elements: []Element{
 				{token: Number, tokenValue: "1"},
 				{token: Plus, tokenValue: "+"},
+				{token: Number, tokenValue: "2"},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "error - idx out of range (too large)",
+			idx:  3,
+			elements: []Element{
+				{token: Number, tokenValue: "1"},
+				{token: Plus, tokenValue: "+"},
+				{token: Number, tokenValue: "2"},
 			},
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: "error - token before operator is not Number",
-			tok:  Multiply,
+			idx:  1,
 			elements: []Element{
 				{token: LParen, tokenValue: "("},
 				{token: Multiply, tokenValue: "*"},
@@ -102,7 +104,7 @@ func TestFindOperatorElements(t *testing.T) {
 		},
 		{
 			name: "error - token after operator is not Number",
-			tok:  Divide,
+			idx:  1,
 			elements: []Element{
 				{token: Number, tokenValue: "8"},
 				{token: Divide, tokenValue: "/"},
@@ -112,19 +114,8 @@ func TestFindOperatorElements(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "error - operator not found in elements",
-			tok:  Multiply,
-			elements: []Element{
-				{token: Number, tokenValue: "1"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "2"},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "multiple operators of same type - returns first occurrence",
-			tok:  Plus,
+			name: "multiple operators - can select later occurrence by idx",
+			idx:  3,
 			elements: []Element{
 				{token: Number, tokenValue: "1"},
 				{token: Plus, tokenValue: "+"},
@@ -133,9 +124,9 @@ func TestFindOperatorElements(t *testing.T) {
 				{token: Number, tokenValue: "3"},
 			},
 			want: []Element{
-				{token: Number, tokenValue: "1"},
-				{token: Plus, tokenValue: "+"},
 				{token: Number, tokenValue: "2"},
+				{token: Plus, tokenValue: "+"},
+				{token: Number, tokenValue: "3"},
 			},
 			wantErr: false,
 		},
@@ -143,12 +134,12 @@ func TestFindOperatorElements(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := findOperatorElements(tt.tok, tt.elements)
+			got, err := getOperatorElements(tt.idx, tt.elements)
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("findOperatorElements() error = %v, wantErr %v", err, tt.wantErr)
+				t.Fatalf("getOperatorElements() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("findOperatorElements() got = %#v, want %#v", got, tt.want)
+				t.Errorf("getOperatorElements() got = %#v, want %#v", got, tt.want)
 			}
 		})
 	}
@@ -283,9 +274,52 @@ func TestFindNextOperator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotTok, gotIdx := findNextOperator(tt.elements, tt.operators)
+			gotTok, gotIdx := findLeftOperator(tt.elements, tt.operators)
 			if gotTok != tt.wantTok || gotIdx != tt.wantIdx {
-				t.Errorf("findNextOperator() = (%v, %v), want (%v, %v)", gotTok, gotIdx, tt.wantTok, tt.wantIdx)
+				t.Errorf("findLeftOperator() = (%v, %v), want (%v, %v)", gotTok, gotIdx, tt.wantTok, tt.wantIdx)
+			}
+		})
+	}
+}
+
+func TestFindLastOperator(t *testing.T) {
+	tests := []struct {
+		name      string
+		elements  []Element
+		operators []token
+		wantTok   token
+		wantIdx   int
+	}{
+		{
+			name: "finds last exponent for right-associative evaluation",
+			elements: []Element{
+				{token: Number, tokenValue: "2"},
+				{token: Exponent, tokenValue: "^"},
+				{token: Number, tokenValue: "3"},
+				{token: Exponent, tokenValue: "^"},
+				{token: Number, tokenValue: "2"},
+			},
+			operators: []token{Exponent},
+			wantTok:   Exponent,
+			wantIdx:   3,
+		},
+		{
+			name: "returns NullToken when no operator found",
+			elements: []Element{
+				{token: Number, tokenValue: "2"},
+				{token: Number, tokenValue: "3"},
+			},
+			operators: []token{Plus, Minus, Multiply, Divide, Exponent},
+			wantTok:   NullToken,
+			wantIdx:   -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotTok, gotIdx := findRightOperator(tt.elements, tt.operators)
+			if gotTok != tt.wantTok || gotIdx != tt.wantIdx {
+				t.Errorf("findRightOperator() = (%v, %v), want (%v, %v)", gotTok, gotIdx, tt.wantTok, tt.wantIdx)
 			}
 		})
 	}
@@ -440,6 +474,7 @@ func TestEval(t *testing.T) {
 }
 
 func ptrInt(v int) *int { return &v }
+
 func TestFindRParen(t *testing.T) {
 	type args struct {
 		elements  []Element
