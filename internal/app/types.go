@@ -10,7 +10,7 @@ type precedence int8
 type associativity int8
 
 const (
-	NullToken token = iota
+	NullToken token = iota // NullToken is used as a sentinel
 	Number
 	Plus
 	Minus
@@ -34,20 +34,19 @@ const (
 )
 
 var operations = map[token]struct {
-	token       token
 	description string
 	fn          func(int, int) (int, error)
 }{
-	Plus:     {token: Plus, description: "Plus", fn: func(a, b int) (int, error) { return a + b, nil }},
-	Minus:    {token: Minus, description: "Minus", fn: func(a, b int) (int, error) { return a - b, nil }},
-	Multiply: {token: Multiply, description: "Multiply", fn: func(a, b int) (int, error) { return a * b, nil }},
-	Divide: {token: Divide, description: "Divide", fn: func(a, b int) (int, error) {
+	Plus:     {description: "Plus", fn: func(a, b int) (int, error) { return a + b, nil }},
+	Minus:    {description: "Minus", fn: func(a, b int) (int, error) { return a - b, nil }},
+	Multiply: {description: "Multiply", fn: func(a, b int) (int, error) { return a * b, nil }},
+	Divide: {description: "Divide", fn: func(a, b int) (int, error) {
 		if b == 0 {
 			return 0, fmt.Errorf("division by zero")
 		}
 		return a / b, nil
 	}},
-	Exponent: {token: Exponent, description: "Exponent", fn: func(a, b int) (int, error) { return int(math.Pow(float64(a), float64(b))), nil }},
+	Exponent: {description: "Exponent", fn: func(a, b int) (int, error) { return int(math.Pow(float64(a), float64(b))), nil }},
 }
 
 var opTokens = map[token]string{

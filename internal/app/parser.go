@@ -12,9 +12,10 @@ func evalParen(elements []Element) ([]Element, error) {
 	for {
 		// It's not an error to find no left parenthesis.  Unbalanced parentheses are handled in findRParen()
 		lParenIdx, tf := findLParen(elements)
-		if tf == false {
+		if !tf {
 			break
 		}
+
 		rParenIdx, err := findRParen(elements, lParenIdx)
 		if err != nil {
 			return nil, err
@@ -32,6 +33,7 @@ func evalParen(elements []Element) ([]Element, error) {
 			append(newElement, elements[rParenIdx+1:]...)...,
 		)
 	}
+
 	return elements, nil
 }
 
@@ -39,6 +41,7 @@ func evalParen(elements []Element) ([]Element, error) {
 func evalArithmetic(elements []Element, precedence precedence) ([]Element, error) {
 	for {
 		var exprVal, lVal, rVal, idx int
+
 		var tok token
 
 		switch operationGroups[precedence].associativity {
@@ -50,6 +53,7 @@ func evalArithmetic(elements []Element, precedence precedence) ([]Element, error
 			// Get the index of the next operator and the token
 			tok, idx = findLeftOperator(elements, operationGroups[precedence].tokens)
 		}
+
 		if tok == NullToken {
 			break
 		}
@@ -59,10 +63,12 @@ func evalArithmetic(elements []Element, precedence precedence) ([]Element, error
 		if err != nil {
 			return nil, err
 		}
+
 		lVal, err = strconv.Atoi(subExpr[0].tokenValue)
 		if err != nil {
 			return nil, err
 		}
+
 		rVal, err = strconv.Atoi(subExpr[2].tokenValue)
 		if err != nil {
 			return nil, err
@@ -71,6 +77,7 @@ func evalArithmetic(elements []Element, precedence precedence) ([]Element, error
 		if _, ok := operations[tok]; !ok {
 			return nil, fmt.Errorf("invalid token: %v", tok)
 		}
+
 		exprVal, err = operations[tok].fn(lVal, rVal)
 		if err != nil {
 			return nil, err
@@ -86,6 +93,7 @@ func evalArithmetic(elements []Element, precedence precedence) ([]Element, error
 		elements = append(elements[:idx-1], Element{token: Number, tokenValue: fmt.Sprintf("%d", exprVal)})
 		elements = append(elements, remainder...)
 	}
+
 	return elements, nil
 }
 
@@ -127,10 +135,12 @@ func Eval(e []Element) (*int, error) {
 	if len(elem) != 1 {
 		return nil, fmt.Errorf("invalid expression: %v", elem)
 	}
+
 	result, err := strconv.Atoi(elem[0].tokenValue)
 	if err != nil {
 		return nil, err
 	}
+
 	return &result, nil
 }
 
@@ -144,6 +154,7 @@ func findLeftOperator(elements []Element, operators []token) (token, int) {
 			}
 		}
 	}
+
 	return NullToken, -1
 }
 
@@ -158,6 +169,7 @@ func findRightOperator(elements []Element, operators []token) (token, int) {
 			}
 		}
 	}
+
 	return NullToken, -1
 }
 
@@ -165,11 +177,14 @@ func getOperatorElements(idx int, elements []Element) (subExpr []Element, err er
 	if idx < 1 || idx >= len(elements)-1 {
 		return nil, fmt.Errorf("out of range with index %d and elements: %v", idx, elements)
 	}
+
 	tok := elements[idx].token
 	op, ok := operations[tok]
+
 	if !ok {
 		return nil, fmt.Errorf("invalid token: %v", tok)
 	}
+
 	switch {
 	case elements[idx-1].token != Number:
 		return nil, fmt.Errorf(
@@ -190,6 +205,7 @@ func findLParen(elements []Element) (int, bool) {
 			return i, true
 		}
 	}
+
 	return -1, false
 }
 
@@ -205,6 +221,7 @@ func findRParen(elements []Element, lParenIdx int) (rParenIdx int, err error) {
 			lParenIdx,
 		)
 	}
+
 	if elements[lParenIdx].token != LParen {
 		return 0, fmt.Errorf(
 			"invalid token at index %d: expected LParen, got %v",
@@ -212,15 +229,21 @@ func findRParen(elements []Element, lParenIdx int) (rParenIdx int, err error) {
 			elements[lParenIdx].token,
 		)
 	}
+
 	for i := lParenIdx + 1; i < len(elements); i++ {
-		if elements[i].token == LParen {
+		switch elements[i].token {
+		case LParen:
 			depth++
-		} else if elements[i].token == RParen {
+		case RParen:
 			if depth == 0 {
 				return i, nil
 			}
+
 			depth--
+		default:
+			continue
 		}
 	}
+
 	return 0, fmt.Errorf("unmatched parentheses")
 }

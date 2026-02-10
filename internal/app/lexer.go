@@ -3,12 +3,13 @@ package app
 import "fmt"
 
 func (e Element) String() string {
-	return fmt.Sprintf("%s", e.tokenValue)
+	return e.tokenValue
 }
 
 // GetElements parses a string into a slice of Elements representing tokens
 func GetElements(s string) (e []Element, err error) {
 	var skip int
+
 	e = []Element{}
 	// Iterate over each rune in the string (not each byte)
 outer:
@@ -17,11 +18,12 @@ outer:
 			continue
 		}
 		// Because we are iterating over a range, we can't increment i within the for loop.
-		// So instead, if a multiple rune element is processed, we set skip to a positive value
+		// So instead, if a multiple rune element is processed, skip will be a positive value.
 		if skip > 0 {
 			skip--
 			continue
 		}
+
 		for k, v := range opTokens {
 			if string(c) == v {
 				e = append(e, Element{k, v})
@@ -29,15 +31,20 @@ outer:
 				continue outer
 			}
 		}
+
 		if c < '0' || c > '9' {
 			return nil, fmt.Errorf("invalid character: %c", c)
 		}
+
 		remaining := s[i:]
+
 		var numStr string
+
 		for _, c2 := range remaining {
 			if c2 < '0' || c2 > '9' {
 				break
 			}
+
 			numStr += string(c2)
 		}
 		// The range index naturally increments by one rune on each iteration,
@@ -45,5 +52,6 @@ outer:
 		skip = len(numStr) - 1
 		e = append(e, Element{Number, numStr})
 	}
+
 	return e, nil
 }
