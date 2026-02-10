@@ -17,7 +17,7 @@ outer:
 		if char == ' ' {
 			continue
 		}
-		// Because we are iterating over a range, we can't increment i within the for loop.
+		// Because we are iterating over a range, we can't increment idx within the for loop.
 		// So instead, if a multiple rune element is processed, skip will be a positive value.
 		if skip > 0 {
 			skip--
