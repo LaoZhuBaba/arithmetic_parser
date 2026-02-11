@@ -1,20 +1,51 @@
 package app
 
 import (
+	"fmt"
+	"math"
+	"math/rand/v2"
 	"strings"
 	"testing"
-
-	"math/rand/v2"
 )
 
 // FuzzLexAndEval fuzzes the lexer+parser pipeline.
 //
 // Properties checked:
 //  1. No panics for any input
-//  2. If GetElements(s) succeeds, then GetElements(normalize(s)) succeeds and yields identical tokens
-//  3. Eval is deterministic for the same token stream (including right-associative operators like exponent)
+//  2. If Lexer.GetElementList() succeeds, then Lexer.GetElementList(normalize(tokens)) succeeds and yields identical Elements
+//  3. Parser.Eval is deterministic for the same token stream (including right-associative operators like exponent)
 func FuzzLexAndEval(f *testing.F) {
-	// Seed corpus: valid, invalid, whitespacey, precedence, parentheses, associativity, etc.
+	// Lexer needs the operator vocabulary to recognize non-number Tokens.
+	defaultTokens := []Token{
+		{Id: Plus, Value: "+"},
+		{Id: Minus, Value: "-"},
+		{Id: Multiply, Value: "*"},
+		{Id: Divide, Value: "/"},
+		{Id: Exponent, Value: "^"},
+		{Id: LParen, Value: "("},
+		{Id: RParen, Value: ")"},
+	}
+
+	operations := []Operation{
+		{Description: "Plus", TokenId: Plus, Fn: func(a, b int) (int, error) { return a + b, nil }},
+		{Description: "Minus", TokenId: Minus, Fn: func(a, b int) (int, error) { return a - b, nil }},
+		{Description: "Multiply", TokenId: Multiply, Fn: func(a, b int) (int, error) { return a * b, nil }},
+		{Description: "Divide", TokenId: Divide, Fn: func(a, b int) (int, error) {
+			if b == 0 {
+				return 0, fmt.Errorf("division by zero")
+			}
+			return a / b, nil
+		}},
+		{Description: "Exponent", TokenId: Exponent, Fn: func(a, b int) (int, error) { return int(math.Pow(float64(a), float64(b))), nil }},
+	}
+	opGroups := []OperationGroup{
+		{Tokens: []TokenId{Exponent}, Precedence: PrecedenceExponent, Associativity: RightAssociative},
+		{Tokens: []TokenId{Multiply, Divide}, Precedence: PrecedenceMultiplyDivide, Associativity: LeftAssociative},
+		{Tokens: []TokenId{Plus, Minus}, Precedence: PrecedencePlusMinus, Associativity: LeftAssociative},
+	}
+	parser := NewParser(operations, opGroups)
+
+	// Seed corpus: valid, invalid, whitespacey, Precedence, parentheses, Associativity, etc.
 	seeds := []string{
 		"",
 		"   ",
@@ -32,8 +63,8 @@ func FuzzLexAndEval(f *testing.F) {
 		"99999999999", // may overflow Atoi -> should error, not panic
 		"3+a",         // invalid char
 		"2^3",         // exponent operator
-		"2^3^2",       // right associativity: 2^(3^2)
-		"(2^3)^2",     // parentheses override associativity
+		"2^3^2",       // right Associativity: 2^(3^2)
+		"(2^3)^2",     // parentheses override Associativity
 		"2^(3^2)",     // explicit right association
 	}
 	for _, s := range seeds {
@@ -52,14 +83,15 @@ func FuzzLexAndEval(f *testing.F) {
 			}
 		}()
 
-		elems, err := GetElements(s)
+		lex := NewLexer(s, defaultTokens)
+		elems, err := lex.GetElementList()
 		if err != nil {
 			// For arbitrary strings, lexer errors are expected.
 			return
 		}
 
-		// Normalize: lexer ignores spaces, so rebuild expression from tokens,
-		// adding some random whitespace between tokens.
+		// Normalize: lexer ignores spaces, so rebuild expression from Tokens,
+		// adding some random whitespace between Tokens.
 		var b strings.Builder
 		for _, e := range elems {
 			randomInt := rand.IntN(30)
@@ -72,29 +104,30 @@ func FuzzLexAndEval(f *testing.F) {
 		}
 		normalized := b.String()
 
-		elems2, err := GetElements(normalized)
+		lex2 := NewLexer(normalized, defaultTokens)
+		elems2, err := lex2.GetElementList()
 		if err != nil {
-			t.Fatalf("GetElements failed after normalization. input=%q normalized=%q err=%v", s, normalized, err)
+			t.Fatalf("GetElementList failed after normalization. input=%q normalized=%q err=%v", s, normalized, err)
 		}
 
-		// Tokens should match exactly after normalization.
+		// Elements should match exactly after normalization.
 		if len(elems) != len(elems2) {
 			t.Fatalf("token count changed after normalization. input=%q normalized=%q got=%d got2=%d",
 				s, normalized, len(elems), len(elems2))
 		}
 		for i := range elems {
 			if elems[i] != elems2[i] {
-				t.Fatalf("tokens changed after normalization at i=%d. input=%q normalized=%q got=%v got2=%v",
+				t.Fatalf("Tokens changed after normalization at i=%d. input=%q normalized=%q got=%v got2=%v",
 					i, s, normalized, elems[i], elems2[i])
 			}
 		}
 
-		// Eval should not panic; it may legitimately return an error.
+		// Parser.Eval should not panic; it may legitimately return an error.
 		// Use the normalized token stream for determinism checks too.
-		got1, err1 := Eval(elems2)
-		got2, err2 := Eval(elems2)
+		got1, err1 := parser.Eval(elems2)
+		got2, err2 := parser.Eval(elems2)
 
-		// Determinism check: same tokens, same outcome class (err vs ok) and same value if ok.
+		// Determinism check: same Tokens, same outcome class (err vs ok) and same value if ok.
 		if (err1 != nil) != (err2 != nil) {
 			t.Fatalf("nondeterministic error behavior. input=%q normalized=%q err1=%v err2=%v", s, normalized, err1, err2)
 		}

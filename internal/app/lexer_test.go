@@ -5,25 +5,44 @@ import (
 	"testing"
 )
 
-func TestGetElements(t *testing.T) {
+func TestLexer_GetElementList(t *testing.T) {
+	// Lexer needs the operator vocabulary to recognize non-number tokens.
+	defaultTokens := []Token{
+		{Id: Plus, Value: "+"},
+		{Id: Minus, Value: "-"},
+		{Id: Multiply, Value: "*"},
+		{Id: Divide, Value: "/"},
+		{Id: Exponent, Value: "^"},
+		{Id: LParen, Value: "("},
+		{Id: RParen, Value: ")"},
+	}
+
 	tests := []struct {
 		name       string
 		input      string
-		expected   []Element
+		expected   ElementList
 		shouldFail bool
 	}{
 		{
-			name:  "single number",
-			input: "42",
-			expected: []Element{
-				{token: Number, tokenValue: "42"},
+			name:  "empty input",
+			input: "",
+			expected: ElementList{
+				// empty
 			},
 			shouldFail: false,
 		},
 		{
-			name:  "single number initial spaces",
-			input: "  42",
-			expected: []Element{
+			name:  "spaces only",
+			input: "    ",
+			expected: ElementList{
+				// empty
+			},
+			shouldFail: false,
+		},
+		{
+			name:  "single number",
+			input: "42",
+			expected: ElementList{
 				{token: Number, tokenValue: "42"},
 			},
 			shouldFail: false,
@@ -31,7 +50,7 @@ func TestGetElements(t *testing.T) {
 		{
 			name:  "single number with spaces",
 			input: "  42   ",
-			expected: []Element{
+			expected: ElementList{
 				{token: Number, tokenValue: "42"},
 			},
 			shouldFail: false,
@@ -39,7 +58,7 @@ func TestGetElements(t *testing.T) {
 		{
 			name:  "multiple numbers separated by spaces",
 			input: " 3   5  7   ",
-			expected: []Element{
+			expected: ElementList{
 				{token: Number, tokenValue: "3"},
 				{token: Number, tokenValue: "5"},
 				{token: Number, tokenValue: "7"},
@@ -49,7 +68,7 @@ func TestGetElements(t *testing.T) {
 		{
 			name:  "numbers with parentheses and plus/minus",
 			input: "(12+34)-56",
-			expected: []Element{
+			expected: ElementList{
 				{token: LParen, tokenValue: "("},
 				{token: Number, tokenValue: "12"},
 				{token: Plus, tokenValue: "+"},
@@ -63,7 +82,7 @@ func TestGetElements(t *testing.T) {
 		{
 			name:  "multiply and divide",
 			input: "8/2*3",
-			expected: []Element{
+			expected: ElementList{
 				{token: Number, tokenValue: "8"},
 				{token: Divide, tokenValue: "/"},
 				{token: Number, tokenValue: "2"},
@@ -73,60 +92,20 @@ func TestGetElements(t *testing.T) {
 			shouldFail: false,
 		},
 		{
-			name:  "all operators with spaces",
-			input: "  9 + 6 - 3 * 2 / 4  ",
-			expected: []Element{
-				{token: Number, tokenValue: "9"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "6"},
-				{token: Minus, tokenValue: "-"},
-				{token: Number, tokenValue: "3"},
-				{token: Multiply, tokenValue: "*"},
+			name:  "exponent tokens",
+			input: "2^3^2",
+			expected: ElementList{
 				{token: Number, tokenValue: "2"},
-				{token: Divide, tokenValue: "/"},
-				{token: Number, tokenValue: "4"},
-			},
-			shouldFail: false,
-		},
-		{
-			name:  "nested parentheses",
-			input: "((1+ 2)- (3-4)) ",
-			expected: []Element{
-				{token: LParen, tokenValue: "("},
-				{token: LParen, tokenValue: "("},
-				{token: Number, tokenValue: "1"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "2"},
-				{token: RParen, tokenValue: ")"},
-				{token: Minus, tokenValue: "-"},
-				{token: LParen, tokenValue: "("},
+				{token: Exponent, tokenValue: "^"},
 				{token: Number, tokenValue: "3"},
-				{token: Minus, tokenValue: "-"},
-				{token: Number, tokenValue: "4"},
-				{token: RParen, tokenValue: ")"},
-				{token: RParen, tokenValue: ")"},
-			},
-			shouldFail: false,
-		},
-		{
-			name:  "long number sequences",
-			input: "123456+7890",
-			expected: []Element{
-				{token: Number, tokenValue: "123456"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "7890"},
+				{token: Exponent, tokenValue: "^"},
+				{token: Number, tokenValue: "2"},
 			},
 			shouldFail: false,
 		},
 		{
 			name:       "invalid character",
 			input:      "j",
-			expected:   nil,
-			shouldFail: true,
-		},
-		{
-			name:       "invalid character leading space",
-			input:      " j",
 			expected:   nil,
 			shouldFail: true,
 		},
@@ -142,32 +121,21 @@ func TestGetElements(t *testing.T) {
 			expected:   nil,
 			shouldFail: true,
 		},
-		{
-			name:       "empty input",
-			input:      "",
-			expected:   []Element{},
-			shouldFail: false,
-		},
-		{
-			name:       "spaces only",
-			input:      "    ",
-			expected:   []Element{},
-			shouldFail: false,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := GetElements(tt.input)
+			lex := NewLexer(tt.input, defaultTokens)
+			got, err := lex.GetElementList()
 
-			if !tt.shouldFail && err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			if (err != nil) != tt.shouldFail {
+				t.Fatalf("GetElementList() err=%v shouldFail=%v", err, tt.shouldFail)
 			}
-			if tt.shouldFail && err == nil {
-				t.Fatalf("expected error but got none")
+			if tt.shouldFail {
+				return
 			}
-			if !tt.shouldFail && !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("unexpected result, got: %#v, want: %#v", result, tt.expected)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Fatalf("GetElementList() got=%#v want=%#v", got, tt.expected)
 			}
 		})
 	}

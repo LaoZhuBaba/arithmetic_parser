@@ -5,52 +5,104 @@ import (
 	"strconv"
 )
 
+func NewParser(operations []Operation, opGroups []OperationGroup) (parser Parser) {
+	parser = Parser{Operations: operations, OperationGroups: opGroups}
+	return parser
+}
+
+func (p Parser) getOperationByTokenId(t TokenId) (*Operation, error) {
+	for _, op := range p.Operations {
+		if op.TokenId == t {
+			return &op, nil
+		}
+	}
+	return nil, fmt.Errorf("no operation defined with TokenId %d", t)
+}
+
+// Eval accepts a list of elements representing an arithmetic expression
+// and returns the result as a pointer to an int.
+func (p Parser) Eval(e ElementList) (i *int, err error) {
+	// Make a copy of the slice so we can modify it without affecting the original
+	// Fuzz testing requires that the slice be immutable.
+	elementList := make(ElementList, len(e))
+	copy(elementList, e)
+
+	// Evaluate parenthetical expressions first
+	elementList, err = p.evalParen(elementList)
+	if err != nil {
+		return nil, err
+	}
+
+	// operationGroups is the map of Precedence levels to the operators that can be used in that level
+	// Each key is a Precedence level that refers to a group of operators that have the same Precedence
+	// and Associativity.  For example, multiplication and division share the same Precedence level called
+	// "multiplyDivide" and they are both left associative.  It is assumed that the first Precedence
+	// to be evaluated will have a value of 0 and others will have consecutive values.
+	for _, group := range p.OperationGroups {
+		elementList, err = p.evalArithmetic(elementList, group.Precedence)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// After all operation groups have been processed, there should only be one element left: the result
+	if len(elementList) != 1 {
+		return nil, fmt.Errorf("invalid expression: %v", elementList)
+	}
+
+	result, err := strconv.Atoi(elementList[0].tokenValue)
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
 // evalParen reduces parenthetical expressions to numbers, calling Eval() for subexpressions
-func evalParen(elements []Element) ([]Element, error) {
+func (p Parser) evalParen(elementList ElementList) (ElementList, error) {
 	// Iterate until every parenthetical expression has been reduced to a number
 	for {
 		// It's not an error to find no left parenthesis.  Unbalanced parentheses are handled in findRParen()
-		lParenIdx, tf := findLParen(elements)
+		lParenIdx, tf := elementList.findLParen()
 		if !tf {
 			break
 		}
 
-		rParenIdx, err := findRParen(elements, lParenIdx)
+		rParenIdx, err := elementList.findRParen(lParenIdx)
 		if err != nil {
 			return nil, err
 		}
 		// Submit the expression inside the parentheses for evaluation
-		val, err := Eval(elements[lParenIdx+1 : rParenIdx])
+		val, err := p.Eval(elementList[lParenIdx+1 : rParenIdx])
 		if err != nil {
 			return nil, err
 		}
 		// Build a number element with the result of the evaluation
-		newElement := []Element{{token: Number, tokenValue: fmt.Sprintf("%d", *val)}}
+		newElement := ElementList{{token: Number, tokenValue: fmt.Sprintf("%d", *val)}}
 		// Replace the parentheses with the evaluated expression
-		elements = append(
-			elements[:lParenIdx],
-			append(newElement, elements[rParenIdx+1:]...)...,
+		elementList = append(
+			elementList[:lParenIdx],
+			append(newElement, elementList[rParenIdx+1:]...)...,
 		)
 	}
-
-	return elements, nil
+	return elementList, nil
 }
 
 // evalArithmetic reduces arithmetic expressions to a single number element, calling Eval() for subexpressions.
-func evalArithmetic(elements []Element, precedence precedence) ([]Element, error) {
+func (p Parser) evalArithmetic(elementList ElementList, precedence precedence) (ElementList, error) {
 	for {
 		var exprVal, lVal, rVal, idx int
 
-		var tok token
+		var tok TokenId
 
-		switch operationGroups[precedence].associativity {
-		case rightAssociative:
-			// Get the index of the next operator and the token
-			tok, idx = findRightOperator(elements, operationGroups[precedence].tokens)
+		switch p.OperationGroups[precedence].Associativity {
+		case RightAssociative:
+			// Get the index of the next operator and the TokenId
+			tok, idx = elementList.findRightOperator(p.OperationGroups[precedence].Tokens)
 
-		case leftAssociative:
-			// Get the index of the next operator and the token
-			tok, idx = findLeftOperator(elements, operationGroups[precedence].tokens)
+		case LeftAssociative:
+			// Get the index of the next operator and the TokenId
+			tok, idx = elementList.findLeftOperator(p.OperationGroups[precedence].Tokens)
 		}
 
 		if tok == NullToken {
@@ -58,7 +110,7 @@ func evalArithmetic(elements []Element, precedence precedence) ([]Element, error
 		}
 
 		// Get the elements that make up the expression: [number, operator, number]
-		subExpr, err := getOperatorElements(idx, elements)
+		subExpr, err := p.getOperatorElements(idx, elementList)
 		if err != nil {
 			return nil, err
 		}
@@ -73,75 +125,59 @@ func evalArithmetic(elements []Element, precedence precedence) ([]Element, error
 			return nil, err
 		}
 
-		if _, ok := operations[tok]; !ok {
-			return nil, fmt.Errorf("invalid token: %v", tok)
+		op, err := p.getOperationByTokenId(tok)
+		if err != nil {
+			return nil, err
 		}
-
-		exprVal, err = operations[tok].fn(lVal, rVal)
+		exprVal, err = op.Fn(lVal, rVal)
 		if err != nil {
 			return nil, err
 		}
 
 		// remainder is the slice of elements after the expression being evaluated.
-		// idx+2 is used because idx is the index of the operator token, so idx+1 is
-		// the second number token, and idx+2 is the start of anything that follows.
-		remainder := make([]Element, len(elements[idx+2:]))
-		copy(remainder, elements[idx+2:])
+		// idx+2 is used because idx is the index of the operator TokenId, so idx+1 is
+		// the second number TokenId, and idx+2 is the start of anything that follows.
+		remainder := make(ElementList, len(elementList[idx+2:]))
+		copy(remainder, elementList[idx+2:])
 		// idx-1 is the index of the left operand so we are taking everything before the
 		// expression and appending the result of the expression.
-		elements = append(elements[:idx-1], Element{token: Number, tokenValue: fmt.Sprintf("%d", exprVal)})
-		elements = append(elements, remainder...)
+		elementList = append(elementList[:idx-1], Element{token: Number, tokenValue: fmt.Sprintf("%d", exprVal)})
+		elementList = append(elementList, remainder...)
 	}
 
-	return elements, nil
+	return elementList, nil
 }
 
-// Eval accepts a list of elements representing an arithmetic expression
-// and returns the result as a pointer to an int.
-func Eval(e []Element) (*int, error) {
-	// Make a copy of the slice so we can modify it without affecting the original
-	// Fuzz testing requires that the slice be immutable.
-	elements := make([]Element, len(e))
-	copy(elements, e)
+// getOperatorElements returns the elements that make up an operator expression: [number, operator, number]
+func (p Parser) getOperatorElements(idx int, elementList ElementList) (subExp ElementList, err error) {
+	// elements[idx] should be an operator TokenId so there must be a character before and after it
+	if idx < 1 || idx >= len(elementList)-1 {
+		return nil, fmt.Errorf("out of range with index %d and elements: %v", idx, elementList)
+	}
 
-	// Evaluate parenthetical expressions first
-	elem, err := evalParen(elements)
+	tok := elementList[idx].token
+	op, err := p.getOperationByTokenId(tok)
+
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid TokenId: %v", tok)
 	}
 
-	// operationGroups is the map of precedence levels to the operators that can be used in that level
-	// Each key is a precedence level that refers to a group of operators that have the same precedence
-	// and associativity.  For example, multiplication and division share the same precedence level called
-	// "multiplyDivide" and they are both left associative.  It is assumed that the first precedence
-	// to be evaluated will have a value of 0 and others will have consecutive values.
-	for prec := precedence(0); ; prec++ {
-		if _, ok := operationGroups[prec]; !ok {
-			break
-		}
-		elem, err = evalArithmetic(elem, prec)
-		if err != nil {
-			return nil, err
-		}
+	switch {
+	case elementList[idx-1].token != Number:
+		return nil, fmt.Errorf(
+			"invalid TokenId before %s: expected Number, got %v", op.Description, elementList[idx-1].token)
+	case elementList[idx+1].token != Number:
+		return nil, fmt.Errorf(
+			"invalid TokenId after %s: expected Number, got %v", op.Description, elementList[idx+1].token)
+	default:
+		return elementList[idx-1 : idx+2], nil
 	}
-
-	// After all operation groups have been processed, there should only be one element left: the result
-	if len(elem) != 1 {
-		return nil, fmt.Errorf("invalid expression: %v", elem)
-	}
-
-	result, err := strconv.Atoi(elem[0].tokenValue)
-	if err != nil {
-		return nil, err
-	}
-
-	return &result, nil
 }
 
 // findLeftOperator returns the leftmost matching operator and its index from the elements slice or
 // (NullToken, -1) if not found.  NullToken is a sentinel value, not an error.
-func findLeftOperator(elements []Element, operators []token) (token, int) {
-	for i, e := range elements {
+func (e ElementList) findLeftOperator(operators []TokenId) (TokenId, int) {
+	for i, e := range e {
 		for _, tok := range operators {
 			if e.token == tok {
 				return tok, i
@@ -154,50 +190,23 @@ func findLeftOperator(elements []Element, operators []token) (token, int) {
 
 // findRightOperator returns the rightmost matching operator and its index from the elements slice or
 // (NullToken, -1) if not found.  NullToken is a sentinel value, not an error.
-func findRightOperator(elements []Element, operators []token) (token, int) {
-	for i := range elements {
-		reverseIdx := len(elements) - i - 1
+func (el ElementList) findRightOperator(operators []TokenId) (TokenId, int) {
+	for i := range el {
+		reverseIdx := len(el) - i - 1
 		for _, tok := range operators {
-			if elements[reverseIdx].token == tok {
+			if el[reverseIdx].token == tok {
 				return tok, reverseIdx
 			}
 		}
 	}
-
 	return NullToken, -1
-}
-
-// getOperatorElements returns the elements that make up an operator expression: [number, operator, number]
-func getOperatorElements(idx int, elements []Element) (subExpr []Element, err error) {
-	// elements[idx] should be an operator token so there must be a character before and after it
-	if idx < 1 || idx >= len(elements)-1 {
-		return nil, fmt.Errorf("out of range with index %d and elements: %v", idx, elements)
-	}
-
-	tok := elements[idx].token
-	op, ok := operations[tok]
-
-	if !ok {
-		return nil, fmt.Errorf("invalid token: %v", tok)
-	}
-
-	switch {
-	case elements[idx-1].token != Number:
-		return nil, fmt.Errorf(
-			"invalid token before %s: expected Number, got %v", op.description, elements[idx-1].token)
-	case elements[idx+1].token != Number:
-		return nil, fmt.Errorf(
-			"invalid token after %s: expected Number, got %v", op.description, elements[idx+1].token)
-	default:
-		return elements[idx-1 : idx+2], nil
-	}
 }
 
 // findLParen searches for the first left parenthesis in the slice and returns its index
 // and true if found or -1 and false.
-func findLParen(elements []Element) (int, bool) {
-	for i, e := range elements {
-		if e.token == LParen {
+func (el ElementList) findLParen() (int, bool) {
+	for i, element := range el {
+		if element.token == LParen {
 			return i, true
 		}
 	}
@@ -207,27 +216,27 @@ func findLParen(elements []Element) (int, bool) {
 
 // findRParen searches for right parenthesis matching the left parenthesis which
 // should always been found at index lParenIdx.
-func findRParen(elements []Element, lParenIdx int) (rParenIdx int, err error) {
+func (el ElementList) findRParen(lParenIdx int) (rParenIdx int, err error) {
 	// Use depth to track the number of unmatched parentheses
 	var depth int
 
-	if lParenIdx < 0 || lParenIdx >= len(elements) {
+	if lParenIdx < 0 || lParenIdx >= len(el) {
 		return 0, fmt.Errorf(
 			"invalid index %d: out of range for elements slice",
 			lParenIdx,
 		)
 	}
 
-	if elements[lParenIdx].token != LParen {
+	if el[lParenIdx].token != LParen {
 		return 0, fmt.Errorf(
-			"invalid token at index %d: expected LParen, got %v",
+			"invalid TokenId at index %d: expected LParen, got %v",
 			lParenIdx,
-			elements[lParenIdx].token,
+			el[lParenIdx].token,
 		)
 	}
 
-	for i := lParenIdx + 1; i < len(elements); i++ {
-		switch elements[i].token {
+	for i := lParenIdx + 1; i < len(el); i++ {
+		switch el[i].token {
 		case LParen:
 			depth++
 		case RParen:
@@ -242,4 +251,8 @@ func findRParen(elements []Element, lParenIdx int) (rParenIdx int, err error) {
 	}
 
 	return 0, fmt.Errorf("unmatched parentheses")
+}
+
+func (e Element) String() string {
+	return e.tokenValue
 }

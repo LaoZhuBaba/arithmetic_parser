@@ -2,18 +2,23 @@ package app
 
 import "fmt"
 
-func (e Element) String() string {
-	return e.tokenValue
+func NewLexer(input string, tokens []Token) (expr Lexer) {
+	expr.Input = input
+	expr.tokens = map[string]TokenId{}
+	for _, token := range tokens {
+		expr.tokens[token.Value] = token.Id
+	}
+	return expr
 }
 
-// GetElements parses a string into a slice of Elements representing tokens
-func GetElements(s string) (e []Element, err error) {
+// GetElementList parses a string into a slice of Elements representing Tokens
+func (l Lexer) GetElementList() (elementList ElementList, err error) {
 	var skip int
 
-	e = []Element{}
+	elementList = ElementList{}
 	// Iterate over each rune in the string (not each byte)
-	for idx, char := range s {
-		if char == ' ' {
+	for idx, c := range l.Input {
+		if c == ' ' {
 			continue
 		}
 		// Because we are iterating over a range, we can't increment idx within the for loop.
@@ -22,21 +27,20 @@ func GetElements(s string) (e []Element, err error) {
 			skip--
 			continue
 		}
-
 		// Handle operator characters
-		if _, ok := opTokens[char]; ok {
-			e = append(e, Element{opTokens[char], string(char)})
+		if _, ok := l.tokens[string(c)]; ok {
+			elementList = append(elementList, Element{l.tokens[string(c)], string(c)})
 			continue
 		}
 
-		if char < '0' || char > '9' {
-			return nil, fmt.Errorf("invalid operator character: %c", char)
+		if c < '0' || c > '9' {
+			return nil, fmt.Errorf("invalid operator character: %c", c)
 		}
 
 		// Handle number characters
 		var numStr string
 
-		remaining := s[idx:]
+		remaining := l.Input[idx:]
 		for _, remChar := range remaining {
 			if remChar < '0' || remChar > '9' {
 				break
@@ -47,8 +51,8 @@ func GetElements(s string) (e []Element, err error) {
 		// The range index naturally increments by one rune on each iteration,
 		// so we only need to skip the number by which numStr exceeds 1.
 		skip = len(numStr) - 1
-		e = append(e, Element{Number, numStr})
+		elementList = append(elementList, Element{Number, numStr})
 	}
 
-	return e, nil
+	return elementList, nil
 }

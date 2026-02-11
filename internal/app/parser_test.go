@@ -1,166 +1,52 @@
 package app
 
 import (
-	"reflect"
+	"fmt"
+	"math"
 	"testing"
 )
 
-func TestFindOperatorElements(t *testing.T) {
-	tests := []struct {
-		name     string
-		idx      int
-		elements []Element
-		want     []Element
-		wantErr  bool
-	}{
-		{
-			name: "plus - valid in middle",
-			idx:  1,
-			elements: []Element{
-				{token: Number, tokenValue: "1"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "2"},
-			},
-			want: []Element{
-				{token: Number, tokenValue: "1"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "2"},
-			},
-			wantErr: false,
-		},
-		{
-			name: "multiply - valid in middle",
-			idx:  1,
-			elements: []Element{
-				{token: Number, tokenValue: "3"},
-				{token: Multiply, tokenValue: "*"},
-				{token: Number, tokenValue: "4"},
-			},
-			want: []Element{
-				{token: Number, tokenValue: "3"},
-				{token: Multiply, tokenValue: "*"},
-				{token: Number, tokenValue: "4"},
-			},
-			wantErr: false,
-		},
-		{
-			name: "divide - valid in longer expression (returns window around idx)",
-			idx:  1,
-			elements: []Element{
-				{token: Number, tokenValue: "8"},
-				{token: Divide, tokenValue: "/"},
-				{token: Number, tokenValue: "2"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "1"},
-			},
-			want: []Element{
-				{token: Number, tokenValue: "8"},
-				{token: Divide, tokenValue: "/"},
-				{token: Number, tokenValue: "2"},
-			},
-			wantErr: false,
-		},
-		{
-			name: "error - invalid operator token at idx (Number is not an operator)",
-			idx:  0,
-			elements: []Element{
-				{token: Number, tokenValue: "1"},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "error - idx out of range (negative)",
-			idx:  -1,
-			elements: []Element{
-				{token: Number, tokenValue: "1"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "2"},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "error - idx out of range (too large)",
-			idx:  3,
-			elements: []Element{
-				{token: Number, tokenValue: "1"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "2"},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "error - token before operator is not Number",
-			idx:  1,
-			elements: []Element{
-				{token: LParen, tokenValue: "("},
-				{token: Multiply, tokenValue: "*"},
-				{token: Number, tokenValue: "2"},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "error - token after operator is not Number",
-			idx:  1,
-			elements: []Element{
-				{token: Number, tokenValue: "8"},
-				{token: Divide, tokenValue: "/"},
-				{token: RParen, tokenValue: ")"},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "multiple operators - can select later occurrence by idx",
-			idx:  3,
-			elements: []Element{
-				{token: Number, tokenValue: "1"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "2"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "3"},
-			},
-			want: []Element{
-				{token: Number, tokenValue: "2"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "3"},
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := getOperatorElements(tt.idx, tt.elements)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("getOperatorElements() error = %v, wantErr %v", err, tt.wantErr)
+func newTestParser() Parser {
+	operations := []Operation{
+		{Description: "Plus", TokenId: Plus, Fn: func(a, b int) (int, error) { return a + b, nil }},
+		{Description: "Minus", TokenId: Minus, Fn: func(a, b int) (int, error) { return a - b, nil }},
+		{Description: "Multiply", TokenId: Multiply, Fn: func(a, b int) (int, error) { return a * b, nil }},
+		{Description: "Divide", TokenId: Divide, Fn: func(a, b int) (int, error) {
+			if b == 0 {
+				return 0, fmt.Errorf("division by zero")
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("getOperatorElements() got = %#v, want %#v", got, tt.want)
-			}
-		})
+			return a / b, nil
+		}},
+		{Description: "Exponent", TokenId: Exponent, Fn: func(a, b int) (int, error) {
+			return int(math.Pow(float64(a), float64(b))), nil
+		}},
 	}
+	opGroups := []OperationGroup{
+		{Tokens: []TokenId{Exponent}, Precedence: PrecedenceExponent, Associativity: RightAssociative},
+		{Tokens: []TokenId{Multiply, Divide}, Precedence: PrecedenceMultiplyDivide, Associativity: LeftAssociative},
+		{Tokens: []TokenId{Plus, Minus}, Precedence: PrecedencePlusMinus, Associativity: LeftAssociative},
+	}
+	return NewParser(operations, opGroups)
 }
 
-func TestFindLParen(t *testing.T) {
+func ptrInt(v int) *int { return &v }
+
+func TestElementList_findLParen(t *testing.T) {
 	tests := []struct {
 		name     string
-		elements []Element
+		elements ElementList
 		wantIdx  int
 		wantBool bool
 	}{
 		{
-			name:     "empty slice",
-			elements: []Element{},
+			name:     "empty",
+			elements: ElementList{},
 			wantIdx:  -1,
 			wantBool: false,
 		},
 		{
-			name: "no left parentheses",
-			elements: []Element{
+			name: "none",
+			elements: ElementList{
 				{token: Number, tokenValue: "1"},
 				{token: Plus, tokenValue: "+"},
 				{token: Number, tokenValue: "2"},
@@ -169,8 +55,8 @@ func TestFindLParen(t *testing.T) {
 			wantBool: false,
 		},
 		{
-			name: "left paren at start",
-			elements: []Element{
+			name: "at start",
+			elements: ElementList{
 				{token: LParen, tokenValue: "("},
 				{token: Number, tokenValue: "1"},
 			},
@@ -178,8 +64,8 @@ func TestFindLParen(t *testing.T) {
 			wantBool: true,
 		},
 		{
-			name: "left paren later",
-			elements: []Element{
+			name: "later",
+			elements: ElementList{
 				{token: Number, tokenValue: "1"},
 				{token: Plus, tokenValue: "+"},
 				{token: LParen, tokenValue: "("},
@@ -188,128 +74,154 @@ func TestFindLParen(t *testing.T) {
 			wantIdx:  2,
 			wantBool: true,
 		},
-		{
-			name: "multiple left parens - returns first",
-			elements: []Element{
-				{token: Number, tokenValue: "1"},
-				{token: LParen, tokenValue: "("},
-				{token: LParen, tokenValue: "("},
-			},
-			wantIdx:  1,
-			wantBool: true,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotIdx, tf := findLParen(tt.elements)
-			if tf != tt.wantBool {
-				t.Fatalf("findLParen() tf = %v, wantBool %v", tf, tt.wantBool)
-			}
-			if gotIdx != tt.wantIdx {
-				t.Errorf("findLParen() gotIdx = %v, want %v", gotIdx, tt.wantIdx)
+			gotIdx, gotBool := tt.elements.findLParen()
+			if gotIdx != tt.wantIdx || gotBool != tt.wantBool {
+				t.Fatalf("findLParen() = (%d,%v), want (%d,%v)", gotIdx, gotBool, tt.wantIdx, tt.wantBool)
 			}
 		})
 	}
 }
 
-func TestFindNextOperator(t *testing.T) {
+func TestElementList_findRParen(t *testing.T) {
+	tests := []struct {
+		name     string
+		elements ElementList
+		lIdx     int
+		want     int
+		wantErr  bool
+	}{
+		{
+			name:     "simple",
+			elements: ElementList{{token: LParen, tokenValue: "("}, {token: Number, tokenValue: "1"}, {token: RParen, tokenValue: ")"}},
+			lIdx:     0,
+			want:     2,
+			wantErr:  false,
+		},
+		{
+			name:     "nested outer",
+			elements: ElementList{{token: LParen, tokenValue: "("}, {token: LParen, tokenValue: "("}, {token: Number, tokenValue: "1"}, {token: RParen, tokenValue: ")"}, {token: RParen, tokenValue: ")"}},
+			lIdx:     0,
+			want:     4,
+			wantErr:  false,
+		},
+		{
+			name:     "nested inner",
+			elements: ElementList{{token: LParen, tokenValue: "("}, {token: LParen, tokenValue: "("}, {token: Number, tokenValue: "1"}, {token: RParen, tokenValue: ")"}, {token: RParen, tokenValue: ")"}},
+			lIdx:     1,
+			want:     3,
+			wantErr:  false,
+		},
+		{
+			name:     "error - out of range",
+			elements: ElementList{{token: LParen, tokenValue: "("}, {token: RParen, tokenValue: ")"}},
+			lIdx:     2,
+			want:     0,
+			wantErr:  true,
+		},
+		{
+			name:     "error - not LParen at index",
+			elements: ElementList{{token: Number, tokenValue: "7"}, {token: LParen, tokenValue: "("}, {token: RParen, tokenValue: ")"}},
+			lIdx:     0,
+			want:     0,
+			wantErr:  true,
+		},
+		{
+			name:     "error - unmatched",
+			elements: ElementList{{token: LParen, tokenValue: "("}, {token: Number, tokenValue: "1"}},
+			lIdx:     0,
+			want:     0,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.elements.findRParen(tt.lIdx)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("findRParen() err=%v wantErr=%v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Fatalf("findRParen() got=%d want=%d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestElementList_findLeftOperator(t *testing.T) {
 	tests := []struct {
 		name      string
-		elements  []Element
-		operators []token
-		wantTok   token
+		elements  ElementList
+		operators []TokenId
+		wantTok   TokenId
 		wantIdx   int
 	}{
 		{
 			name: "finds first multiply when searching multiply/divide",
-			elements: []Element{
+			elements: ElementList{
 				{token: Number, tokenValue: "2"},
 				{token: Plus, tokenValue: "+"},
 				{token: Number, tokenValue: "3"},
 				{token: Multiply, tokenValue: "*"},
 				{token: Number, tokenValue: "4"},
 			},
-			operators: []token{Multiply, Divide},
+			operators: []TokenId{Multiply, Divide},
 			wantTok:   Multiply,
 			wantIdx:   3,
 		},
 		{
-			name: "finds first plus when searching plus/minus",
-			elements: []Element{
-				{token: Number, tokenValue: "2"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "3"},
-				{token: Minus, tokenValue: "-"},
-				{token: Number, tokenValue: "1"},
-			},
-			operators: []token{Plus, Minus},
-			wantTok:   Plus,
-			wantIdx:   1,
-		},
-		{
 			name: "returns NullToken when no operator found",
-			elements: []Element{
+			elements: ElementList{
 				{token: Number, tokenValue: "2"},
 				{token: Number, tokenValue: "3"},
 			},
-			operators: []token{Plus, Minus, Multiply, Divide},
+			operators: []TokenId{Plus, Minus, Multiply, Divide},
 			wantTok:   NullToken,
 			wantIdx:   -1,
-		},
-		{
-			name: "returns first matching token based on slice scan (not operator list order)",
-			elements: []Element{
-				{token: Number, tokenValue: "8"},
-				{token: Divide, tokenValue: "/"},
-				{token: Number, tokenValue: "2"},
-				{token: Multiply, tokenValue: "*"},
-				{token: Number, tokenValue: "3"},
-			},
-			operators: []token{Multiply, Divide},
-			wantTok:   Divide,
-			wantIdx:   1,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotTok, gotIdx := findLeftOperator(tt.elements, tt.operators)
+			gotTok, gotIdx := tt.elements.findLeftOperator(tt.operators)
 			if gotTok != tt.wantTok || gotIdx != tt.wantIdx {
-				t.Errorf("findLeftOperator() = (%v, %v), want (%v, %v)", gotTok, gotIdx, tt.wantTok, tt.wantIdx)
+				t.Fatalf("findLeftOperator() = (%v,%d), want (%v,%d)", gotTok, gotIdx, tt.wantTok, tt.wantIdx)
 			}
 		})
 	}
 }
 
-func TestFindLastOperator(t *testing.T) {
+func TestElementList_findRightOperator(t *testing.T) {
 	tests := []struct {
 		name      string
-		elements  []Element
-		operators []token
-		wantTok   token
+		elements  ElementList
+		operators []TokenId
+		wantTok   TokenId
 		wantIdx   int
 	}{
 		{
-			name: "finds last exponent for right-associative evaluation",
-			elements: []Element{
+			name: "finds last exponent",
+			elements: ElementList{
 				{token: Number, tokenValue: "2"},
 				{token: Exponent, tokenValue: "^"},
 				{token: Number, tokenValue: "3"},
 				{token: Exponent, tokenValue: "^"},
 				{token: Number, tokenValue: "2"},
 			},
-			operators: []token{Exponent},
+			operators: []TokenId{Exponent},
 			wantTok:   Exponent,
 			wantIdx:   3,
 		},
 		{
 			name: "returns NullToken when no operator found",
-			elements: []Element{
+			elements: ElementList{
 				{token: Number, tokenValue: "2"},
 				{token: Number, tokenValue: "3"},
 			},
-			operators: []token{Plus, Minus, Multiply, Divide, Exponent},
+			operators: []TokenId{Plus, Minus, Multiply, Divide, Exponent},
 			wantTok:   NullToken,
 			wantIdx:   -1,
 		},
@@ -317,140 +229,167 @@ func TestFindLastOperator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotTok, gotIdx := findRightOperator(tt.elements, tt.operators)
+			gotTok, gotIdx := tt.elements.findRightOperator(tt.operators)
 			if gotTok != tt.wantTok || gotIdx != tt.wantIdx {
-				t.Errorf("findRightOperator() = (%v, %v), want (%v, %v)", gotTok, gotIdx, tt.wantTok, tt.wantIdx)
+				t.Fatalf("findRightOperator() = (%v,%d), want (%v,%d)", gotTok, gotIdx, tt.wantTok, tt.wantIdx)
 			}
 		})
 	}
 }
 
-func TestEval(t *testing.T) {
+func TestParser_getOperatorElements(t *testing.T) {
+	p := newTestParser()
+
 	tests := []struct {
 		name     string
-		elements []Element
+		idx      int
+		elements ElementList
+		want     ElementList
+		wantErr  bool
+	}{
+		{
+			name: "plus window",
+			idx:  1,
+			elements: ElementList{
+				{token: Number, tokenValue: "1"},
+				{token: Plus, tokenValue: "+"},
+				{token: Number, tokenValue: "2"},
+			},
+			want: ElementList{
+				{token: Number, tokenValue: "1"},
+				{token: Plus, tokenValue: "+"},
+				{token: Number, tokenValue: "2"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "error - idx at beginning (needs left operand)",
+			idx:  0,
+			elements: ElementList{
+				{token: Plus, tokenValue: "+"},
+				{token: Number, tokenValue: "2"},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "error - right operand not Number",
+			idx:  1,
+			elements: ElementList{
+				{token: Number, tokenValue: "8"},
+				{token: Divide, tokenValue: "/"},
+				{token: RParen, tokenValue: ")"},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := p.getOperatorElements(tt.idx, tt.elements)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("getOperatorElements() err=%v wantErr=%v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("getOperatorElements() len=%d want=%d", len(got), len(tt.want))
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("getOperatorElements() got=%#v want=%#v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestParser_Eval(t *testing.T) {
+	p := newTestParser()
+
+	tests := []struct {
+		name     string
+		elements ElementList
 		want     *int
 		wantErr  bool
 	}{
 		{
-			name:     "empty slice",
-			elements: []Element{},
-			want:     ptrInt(0),
+			name:     "empty slice is error",
+			elements: ElementList{},
+			want:     nil,
 			wantErr:  true,
 		},
 		{
-			name:     "nil slice",
+			name:     "nil slice is error",
 			elements: nil,
-			want:     ptrInt(0),
+			want:     nil,
 			wantErr:  true,
 		},
 		{
 			name: "single number",
-			elements: []Element{
+			elements: ElementList{
 				{token: Number, tokenValue: "42"},
 			},
 			want:    ptrInt(42),
 			wantErr: false,
 		},
 		{
-			name: "multiply before plus (precedence)",
-			elements: []Element{
+			name: "precedence: multiply before plus",
+			elements: ElementList{
 				{token: Number, tokenValue: "2"},
 				{token: Plus, tokenValue: "+"},
 				{token: Number, tokenValue: "3"},
 				{token: Multiply, tokenValue: "*"},
 				{token: Number, tokenValue: "4"},
 			},
-			want:    ptrInt(14), // 2 + (3*4)
+			want:    ptrInt(14),
 			wantErr: false,
 		},
 		{
-			name: "left associative subtraction",
-			elements: []Element{
-				{token: Number, tokenValue: "10"},
-				{token: Minus, tokenValue: "-"},
+			name: "right associativity: exponent",
+			elements: ElementList{
+				{token: Number, tokenValue: "2"},
+				{token: Exponent, tokenValue: "^"},
 				{token: Number, tokenValue: "3"},
-				{token: Minus, tokenValue: "-"},
-				{token: Number, tokenValue: "4"},
+				{token: Exponent, tokenValue: "^"},
+				{token: Number, tokenValue: "2"},
 			},
-			want:    ptrInt(3), // (10-3)-4
+			want:    ptrInt(512), // 2^(3^2)
 			wantErr: false,
 		},
 		{
-			name: "integer division",
-			elements: []Element{
-				{token: Number, tokenValue: "7"},
+			name: "parentheses override: (2^3)^2",
+			elements: ElementList{
+				{token: LParen, tokenValue: "("},
+				{token: Number, tokenValue: "2"},
+				{token: Exponent, tokenValue: "^"},
+				{token: Number, tokenValue: "3"},
+				{token: RParen, tokenValue: ")"},
+				{token: Exponent, tokenValue: "^"},
+				{token: Number, tokenValue: "2"},
+			},
+			want:    ptrInt(64),
+			wantErr: false,
+		},
+		{
+			name: "division by zero errors",
+			elements: ElementList{
+				{token: Number, tokenValue: "1"},
 				{token: Divide, tokenValue: "/"},
-				{token: Number, tokenValue: "2"},
-			},
-			want:    ptrInt(3),
-			wantErr: false,
-		},
-		{
-			name: "parentheses change precedence",
-			elements: []Element{
-				{token: LParen, tokenValue: "("},
-				{token: Number, tokenValue: "2"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "3"},
-				{token: RParen, tokenValue: ")"},
-				{token: Multiply, tokenValue: "*"},
-				{token: Number, tokenValue: "4"},
-			},
-			want:    ptrInt(20), // (2+3)*4
-			wantErr: false,
-		},
-		{
-			name: "nested parentheses",
-			elements: []Element{
-				{token: LParen, tokenValue: "("},
-				{token: Number, tokenValue: "1"},
-				{token: Plus, tokenValue: "+"},
-				{token: LParen, tokenValue: "("},
-				{token: Number, tokenValue: "2"},
-				{token: Multiply, tokenValue: "*"},
-				{token: Number, tokenValue: "3"},
-				{token: RParen, tokenValue: ")"},
-				{token: RParen, tokenValue: ")"},
-				{token: Minus, tokenValue: "-"},
-				{token: Number, tokenValue: "4"},
-			},
-			want:    ptrInt(3), // (1+(2*3)) - 4
-			wantErr: false,
-		},
-		{
-			name: "error - invalid expression leaves multiple elements",
-			elements: []Element{
-				{token: Number, tokenValue: "1"},
-				{token: Number, tokenValue: "2"},
+				{token: Number, tokenValue: "0"},
 			},
 			want:    nil,
 			wantErr: true,
 		},
 		{
-			name: "error - unmatched parentheses",
-			elements: []Element{
+			name: "unmatched parentheses errors",
+			elements: ElementList{
 				{token: LParen, tokenValue: "("},
 				{token: Number, tokenValue: "1"},
 				{token: Plus, tokenValue: "+"},
 				{token: Number, tokenValue: "2"},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "error - operator missing right operand",
-			elements: []Element{
-				{token: Number, tokenValue: "1"},
-				{token: Plus, tokenValue: "+"},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "error - invalid number tokenValue",
-			elements: []Element{
-				{token: Number, tokenValue: "not-a-number"},
 			},
 			want:    nil,
 			wantErr: true,
@@ -459,207 +398,15 @@ func TestEval(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Eval(tt.elements)
+			got, err := p.Eval(tt.elements)
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("Eval() error = %v, wantErr %v", err, tt.wantErr)
+				t.Fatalf("Eval() err=%v wantErr=%v", err, tt.wantErr)
 			}
 			if tt.wantErr {
 				return
 			}
 			if got == nil || tt.want == nil || *got != *tt.want {
-				t.Fatalf("Eval() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func ptrInt(v int) *int { return &v }
-
-func TestFindRParen(t *testing.T) {
-	type args struct {
-		elements  []Element
-		lParenIdx int
-	}
-	tests := []struct {
-		name          string
-		args          args
-		wantRParenIdx int
-		wantErr       bool
-	}{
-		{
-			name: "simple pair",
-			args: args{
-				elements: []Element{
-					{token: LParen, tokenValue: "("},
-					{token: Number, tokenValue: "1"},
-					{token: RParen, tokenValue: ")"},
-				},
-				lParenIdx: 0,
-			},
-			wantRParenIdx: 2,
-			wantErr:       false,
-		},
-		{
-			name: "empty parentheses",
-			args: args{
-				elements: []Element{
-					{token: LParen, tokenValue: "("},
-					{token: RParen, tokenValue: ")"},
-				},
-				lParenIdx: 0,
-			},
-			wantRParenIdx: 1,
-			wantErr:       false,
-		},
-		{
-			name: "pair not at beginning",
-			args: args{
-				elements: []Element{
-					{token: Number, tokenValue: "9"},
-					{token: Plus, tokenValue: "+"},
-					{token: LParen, tokenValue: "("},
-					{token: Number, tokenValue: "1"},
-					{token: RParen, tokenValue: ")"},
-				},
-				lParenIdx: 2,
-			},
-			wantRParenIdx: 4,
-			wantErr:       false,
-		},
-		{
-			name: "nested - outer matches last",
-			args: args{
-				elements: []Element{
-					{token: LParen, tokenValue: "("}, // 0
-					{token: LParen, tokenValue: "("}, // 1
-					{token: Number, tokenValue: "1"}, // 2
-					{token: RParen, tokenValue: ")"}, // 3
-					{token: RParen, tokenValue: ")"}, // 4
-				},
-				lParenIdx: 0,
-			},
-			wantRParenIdx: 4,
-			wantErr:       false,
-		},
-		{
-			name: "nested - inner matches inner close",
-			args: args{
-				elements: []Element{
-					{token: LParen, tokenValue: "("}, // 0
-					{token: LParen, tokenValue: "("}, // 1
-					{token: Number, tokenValue: "1"}, // 2
-					{token: RParen, tokenValue: ")"}, // 3
-					{token: RParen, tokenValue: ")"}, // 4
-				},
-				lParenIdx: 1,
-			},
-			wantRParenIdx: 3,
-			wantErr:       false,
-		},
-		{
-			name: "nested with other tokens in between",
-			args: args{
-				elements: []Element{
-					{token: LParen, tokenValue: "("}, // 0
-					{token: Number, tokenValue: "1"}, // 1
-					{token: Plus, tokenValue: "+"},   // 2
-					{token: LParen, tokenValue: "("}, // 3
-					{token: Number, tokenValue: "2"}, // 4
-					{token: RParen, tokenValue: ")"}, // 5
-					{token: Minus, tokenValue: "-"},  // 6
-					{token: Number, tokenValue: "3"}, // 7
-					{token: RParen, tokenValue: ")"}, // 8
-				},
-				lParenIdx: 0,
-			},
-			wantRParenIdx: 8,
-			wantErr:       false,
-		},
-		{
-			name: "error - lParenIdx out of range (empty slice)",
-			args: args{
-				elements:  []Element{},
-				lParenIdx: 0,
-			},
-			wantRParenIdx: 0,
-			wantErr:       true,
-		},
-		{
-			name: "error - lParenIdx out of range (too large)",
-			args: args{
-				elements: []Element{
-					{token: LParen, tokenValue: "("},
-					{token: RParen, tokenValue: ")"},
-				},
-				lParenIdx: 2,
-			},
-			wantRParenIdx: 0,
-			wantErr:       true,
-		},
-		{
-			name: "error - lParenIdx is negative",
-			args: args{
-				elements: []Element{
-					{token: LParen, tokenValue: "("},
-					{token: RParen, tokenValue: ")"},
-				},
-				lParenIdx: -1,
-			},
-			wantRParenIdx: 0,
-			wantErr:       true,
-		},
-		{
-			name: "error - token at index is not LParen",
-			args: args{
-				elements: []Element{
-					{token: Number, tokenValue: "7"},
-					{token: LParen, tokenValue: "("},
-					{token: Number, tokenValue: "1"},
-					{token: RParen, tokenValue: ")"},
-				},
-				lParenIdx: 0,
-			},
-			wantRParenIdx: 0,
-			wantErr:       true,
-		},
-		{
-			name: "error - unmatched parentheses (no closing)",
-			args: args{
-				elements: []Element{
-					{token: LParen, tokenValue: "("},
-					{token: Number, tokenValue: "1"},
-					{token: Plus, tokenValue: "+"},
-					{token: Number, tokenValue: "2"},
-				},
-				lParenIdx: 0,
-			},
-			wantRParenIdx: 0,
-			wantErr:       true,
-		},
-		{
-			name: "error - unmatched parentheses (inner opened not closed)",
-			args: args{
-				elements: []Element{
-					{token: LParen, tokenValue: "("}, // 0
-					{token: LParen, tokenValue: "("}, // 1
-					{token: Number, tokenValue: "1"}, // 2
-					{token: RParen, tokenValue: ")"}, // 3
-				},
-				lParenIdx: 0,
-			},
-			wantRParenIdx: 0,
-			wantErr:       true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotRParenIdx, err := findRParen(tt.args.elements, tt.args.lParenIdx)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("findRParen() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if gotRParenIdx != tt.wantRParenIdx {
-				t.Errorf("findRParen() gotRParenIdx = %v, want %v", gotRParenIdx, tt.wantRParenIdx)
+				t.Fatalf("Eval() got=%v want=%v", got, tt.want)
 			}
 		})
 	}

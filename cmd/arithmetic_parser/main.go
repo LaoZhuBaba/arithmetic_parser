@@ -8,27 +8,19 @@ import (
 )
 
 func main() {
-	var expression string
+	var input string
 	for _, arg := range os.Args[1:] {
-		expression += arg
+		input += arg
 	}
 
-	if expression == "" {
+	if input == "" {
 		fmt.Println("no expression provided")
 		return
 	}
 
-	elements, err := app.GetElements(expression)
+	err := app.Calculate(input)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("calculation failed with error: %v", err)
 		return
 	}
-
-	result, err := app.Eval(elements)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	fmt.Printf("result: %d\n", *result)
 }
