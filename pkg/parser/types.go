@@ -8,7 +8,7 @@ type precedence int8
 type associativity int8
 
 // The following values define the order in which groups of operators are evaluated.
-// The first defined value must be 0 and increase consecutively
+// The order is significant because lower numbers are evaluated before higher numbers.
 const (
 	PrecedenceExponent precedence = iota
 	PrecedenceMultiplyDivide
