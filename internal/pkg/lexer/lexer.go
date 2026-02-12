@@ -1,14 +1,22 @@
-package app
+package lexer
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func NewLexer(input string, tokens []Token) (expr Lexer) {
 	expr.Input = input
+
 	expr.tokens = map[string]TokenId{}
 	for _, token := range tokens {
 		expr.tokens[token.Value] = token.Id
 	}
+
 	return expr
+}
+
+func (e Element) String() string {
+	return e.TokenValue
 }
 
 // GetElementList parses a string into a slice of Elements representing Tokens

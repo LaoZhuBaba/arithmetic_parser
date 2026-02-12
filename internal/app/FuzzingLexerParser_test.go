@@ -6,6 +6,9 @@ import (
 	"math/rand/v2"
 	"strings"
 	"testing"
+
+	"github.com/LaoZhuBaba/arithmetic_parser/internal/pkg/lexer"
+	"github.com/LaoZhuBaba/arithmetic_parser/internal/pkg/parser"
 )
 
 // FuzzLexAndEval fuzzes the lexer+parser pipeline.
@@ -13,39 +16,39 @@ import (
 // Properties checked:
 //  1. No panics for any input
 //  2. If Lexer.GetElementList() succeeds, then Lexer.GetElementList(normalize(tokens)) succeeds and yields identical Elements
-//  3. Parser.Eval is deterministic for the same token stream (including right-associative operators like exponent)
+//  3. parser.Eval is deterministic for the same token stream (including right-associative operators like exponent)
 func FuzzLexAndEval(f *testing.F) {
 	// Lexer needs the operator vocabulary to recognize non-number Tokens.
-	defaultTokens := []Token{
-		{Id: Plus, Value: "+"},
-		{Id: Minus, Value: "-"},
-		{Id: Multiply, Value: "*"},
-		{Id: Divide, Value: "/"},
-		{Id: Exponent, Value: "^"},
-		{Id: LParen, Value: "("},
-		{Id: RParen, Value: ")"},
+	defaultTokens := []lexer.Token{
+		{Id: lexer.Plus, Value: "+"},
+		{Id: lexer.Minus, Value: "-"},
+		{Id: lexer.Multiply, Value: "*"},
+		{Id: lexer.Divide, Value: "/"},
+		{Id: lexer.Exponent, Value: "^"},
+		{Id: lexer.LParen, Value: "("},
+		{Id: lexer.RParen, Value: ")"},
 	}
 
-	operations := []Operation{
-		{Description: "Plus", TokenId: Plus, Fn: func(a, b int) (int, error) { return a + b, nil }},
-		{Description: "Minus", TokenId: Minus, Fn: func(a, b int) (int, error) { return a - b, nil }},
-		{Description: "Multiply", TokenId: Multiply, Fn: func(a, b int) (int, error) { return a * b, nil }},
-		{Description: "Divide", TokenId: Divide, Fn: func(a, b int) (int, error) {
+	operations := []parser.Operation{
+		{Description: "Plus", TokenId: lexer.Plus, Fn: func(a, b int) (int, error) { return a + b, nil }},
+		{Description: "Minus", TokenId: lexer.Minus, Fn: func(a, b int) (int, error) { return a - b, nil }},
+		{Description: "Multiply", TokenId: lexer.Multiply, Fn: func(a, b int) (int, error) { return a * b, nil }},
+		{Description: "Divide", TokenId: lexer.Divide, Fn: func(a, b int) (int, error) {
 			if b == 0 {
 				return 0, fmt.Errorf("division by zero")
 			}
 			return a / b, nil
 		}},
-		{Description: "Exponent", TokenId: Exponent, Fn: func(a, b int) (int, error) { return int(math.Pow(float64(a), float64(b))), nil }},
+		{Description: "Exponent", TokenId: lexer.Exponent, Fn: func(a, b int) (int, error) { return int(math.Pow(float64(a), float64(b))), nil }},
 	}
-	opGroups := []OperationGroup{
-		{Tokens: []TokenId{Exponent}, Precedence: PrecedenceExponent, Associativity: RightAssociative},
-		{Tokens: []TokenId{Multiply, Divide}, Precedence: PrecedenceMultiplyDivide, Associativity: LeftAssociative},
-		{Tokens: []TokenId{Plus, Minus}, Precedence: PrecedencePlusMinus, Associativity: LeftAssociative},
+	opGroups := []parser.OperationGroup{
+		{Tokens: []lexer.TokenId{lexer.Exponent}, Precedence: parser.PrecedenceExponent, Associativity: parser.RightAssociative},
+		{Tokens: []lexer.TokenId{lexer.Multiply, lexer.Divide}, Precedence: parser.PrecedenceMultiplyDivide, Associativity: parser.LeftAssociative},
+		{Tokens: []lexer.TokenId{lexer.Plus, lexer.Minus}, Precedence: parser.PrecedencePlusMinus, Associativity: parser.LeftAssociative},
 	}
-	parser := NewParser(operations, opGroups)
+	p := parser.NewParser(operations, opGroups)
 
-	// Seed corpus: valid, invalid, whitespacey, Precedence, parentheses, Associativity, etc.
+	// Seed corpus: valid, invalid, whitespacey, precedence, parentheses, associativity, etc.
 	seeds := []string{
 		"",
 		"   ",
@@ -63,8 +66,8 @@ func FuzzLexAndEval(f *testing.F) {
 		"99999999999", // may overflow Atoi -> should error, not panic
 		"3+a",         // invalid char
 		"2^3",         // exponent operator
-		"2^3^2",       // right Associativity: 2^(3^2)
-		"(2^3)^2",     // parentheses override Associativity
+		"2^3^2",       // right associativity: 2^(3^2)
+		"(2^3)^2",     // parentheses override associativity
 		"2^(3^2)",     // explicit right association
 	}
 	for _, s := range seeds {
@@ -83,7 +86,7 @@ func FuzzLexAndEval(f *testing.F) {
 			}
 		}()
 
-		lex := NewLexer(s, defaultTokens)
+		lex := lexer.NewLexer(s, defaultTokens)
 		elems, err := lex.GetElementList()
 		if err != nil {
 			// For arbitrary strings, lexer errors are expected.
@@ -95,7 +98,7 @@ func FuzzLexAndEval(f *testing.F) {
 		var b strings.Builder
 		for _, e := range elems {
 			randomInt := rand.IntN(30)
-			b.WriteString(e.tokenValue)
+			b.WriteString(e.TokenValue)
 			if randomInt < 10 {
 				for i := 0; i < randomInt; i++ {
 					b.WriteRune(' ')
@@ -104,7 +107,7 @@ func FuzzLexAndEval(f *testing.F) {
 		}
 		normalized := b.String()
 
-		lex2 := NewLexer(normalized, defaultTokens)
+		lex2 := lexer.NewLexer(normalized, defaultTokens)
 		elems2, err := lex2.GetElementList()
 		if err != nil {
 			t.Fatalf("GetElementList failed after normalization. input=%q normalized=%q err=%v", s, normalized, err)
@@ -122,10 +125,10 @@ func FuzzLexAndEval(f *testing.F) {
 			}
 		}
 
-		// Parser.Eval should not panic; it may legitimately return an error.
+		// p.Eval should not panic; it may legitimately return an error.
 		// Use the normalized token stream for determinism checks too.
-		got1, err1 := parser.Eval(elems2)
-		got2, err2 := parser.Eval(elems2)
+		got1, err1 := p.Eval(elems2)
+		got2, err2 := p.Eval(elems2)
 
 		// Determinism check: same Tokens, same outcome class (err vs ok) and same value if ok.
 		if (err1 != nil) != (err2 != nil) {

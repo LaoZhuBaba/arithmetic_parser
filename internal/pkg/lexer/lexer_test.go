@@ -1,4 +1,4 @@
-package app
+package lexer
 
 import (
 	"reflect"
@@ -43,7 +43,7 @@ func TestLexer_GetElementList(t *testing.T) {
 			name:  "single number",
 			input: "42",
 			expected: ElementList{
-				{token: Number, tokenValue: "42"},
+				{Token: Number, TokenValue: "42"},
 			},
 			shouldFail: false,
 		},
@@ -51,7 +51,7 @@ func TestLexer_GetElementList(t *testing.T) {
 			name:  "single number with spaces",
 			input: "  42   ",
 			expected: ElementList{
-				{token: Number, tokenValue: "42"},
+				{Token: Number, TokenValue: "42"},
 			},
 			shouldFail: false,
 		},
@@ -59,9 +59,9 @@ func TestLexer_GetElementList(t *testing.T) {
 			name:  "multiple numbers separated by spaces",
 			input: " 3   5  7   ",
 			expected: ElementList{
-				{token: Number, tokenValue: "3"},
-				{token: Number, tokenValue: "5"},
-				{token: Number, tokenValue: "7"},
+				{Token: Number, TokenValue: "3"},
+				{Token: Number, TokenValue: "5"},
+				{Token: Number, TokenValue: "7"},
 			},
 			shouldFail: false,
 		},
@@ -69,13 +69,13 @@ func TestLexer_GetElementList(t *testing.T) {
 			name:  "numbers with parentheses and plus/minus",
 			input: "(12+34)-56",
 			expected: ElementList{
-				{token: LParen, tokenValue: "("},
-				{token: Number, tokenValue: "12"},
-				{token: Plus, tokenValue: "+"},
-				{token: Number, tokenValue: "34"},
-				{token: RParen, tokenValue: ")"},
-				{token: Minus, tokenValue: "-"},
-				{token: Number, tokenValue: "56"},
+				{Token: LParen, TokenValue: "("},
+				{Token: Number, TokenValue: "12"},
+				{Token: Plus, TokenValue: "+"},
+				{Token: Number, TokenValue: "34"},
+				{Token: RParen, TokenValue: ")"},
+				{Token: Minus, TokenValue: "-"},
+				{Token: Number, TokenValue: "56"},
 			},
 			shouldFail: false,
 		},
@@ -83,11 +83,11 @@ func TestLexer_GetElementList(t *testing.T) {
 			name:  "multiply and divide",
 			input: "8/2*3",
 			expected: ElementList{
-				{token: Number, tokenValue: "8"},
-				{token: Divide, tokenValue: "/"},
-				{token: Number, tokenValue: "2"},
-				{token: Multiply, tokenValue: "*"},
-				{token: Number, tokenValue: "3"},
+				{Token: Number, TokenValue: "8"},
+				{Token: Divide, TokenValue: "/"},
+				{Token: Number, TokenValue: "2"},
+				{Token: Multiply, TokenValue: "*"},
+				{Token: Number, TokenValue: "3"},
 			},
 			shouldFail: false,
 		},
@@ -95,11 +95,11 @@ func TestLexer_GetElementList(t *testing.T) {
 			name:  "exponent tokens",
 			input: "2^3^2",
 			expected: ElementList{
-				{token: Number, tokenValue: "2"},
-				{token: Exponent, tokenValue: "^"},
-				{token: Number, tokenValue: "3"},
-				{token: Exponent, tokenValue: "^"},
-				{token: Number, tokenValue: "2"},
+				{Token: Number, TokenValue: "2"},
+				{Token: Exponent, TokenValue: "^"},
+				{Token: Number, TokenValue: "3"},
+				{Token: Exponent, TokenValue: "^"},
+				{Token: Number, TokenValue: "2"},
 			},
 			shouldFail: false,
 		},
