@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/LaoZhuBaba/arithmetic_parser/internal/app/config"
-	"github.com/LaoZhuBaba/arithmetic_parser/internal/pkg/lexer"
-	"github.com/LaoZhuBaba/arithmetic_parser/internal/pkg/parser"
+	"github.com/LaoZhuBaba/arithmetic_parser/pkg/lexer"
+	"github.com/LaoZhuBaba/arithmetic_parser/pkg/parser"
 )
 
 func Calculate(s string) error {
@@ -18,7 +18,7 @@ func Calculate(s string) error {
 		return err
 	}
 	operations := config.Operations
-	pa := parser.NewParser(operations, config.OpGroup)
+	pa := parser.NewParserOp(operations, config.OpGroup)
 
 	result, err := pa.Eval(elements)
 	if err != nil {

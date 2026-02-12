@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/LaoZhuBaba/arithmetic_parser/internal/pkg/lexer"
+	"github.com/LaoZhuBaba/arithmetic_parser/pkg/lexer"
 )
 
 func newTestParser() parserOp {
@@ -28,7 +28,7 @@ func newTestParser() parserOp {
 		{Tokens: []lexer.TokenId{lexer.Multiply, lexer.Divide}, Precedence: PrecedenceMultiplyDivide, Associativity: LeftAssociative},
 		{Tokens: []lexer.TokenId{lexer.Plus, lexer.Minus}, Precedence: PrecedencePlusMinus, Associativity: LeftAssociative},
 	}
-	return NewParser(operations, opGroups)
+	return NewParserOp(operations, opGroups)
 }
 
 func ptrInt(v int) *int { return &v }

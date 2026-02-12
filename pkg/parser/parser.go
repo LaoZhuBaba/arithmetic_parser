@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/LaoZhuBaba/arithmetic_parser/internal/pkg/lexer"
+	"github.com/LaoZhuBaba/arithmetic_parser/pkg/lexer"
 )
 
-func NewParser(operations []Operation, opGroups []OperationGroup) (p parserOp) {
+func NewParserOp(operations []Operation, opGroups []OperationGroup) (p parserOp) {
 	p = parserOp{Operations: operations, OperationGroups: opGroups}
 	return p
 }

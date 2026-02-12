@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"github.com/LaoZhuBaba/arithmetic_parser/internal/pkg/lexer"
+	"github.com/LaoZhuBaba/arithmetic_parser/pkg/lexer"
 )
 
 type precedence int8

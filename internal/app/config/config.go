@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/LaoZhuBaba/arithmetic_parser/internal/pkg/lexer"
-	"github.com/LaoZhuBaba/arithmetic_parser/internal/pkg/parser"
+	"github.com/LaoZhuBaba/arithmetic_parser/pkg/lexer"
+	"github.com/LaoZhuBaba/arithmetic_parser/pkg/parser"
 )
 
 var Tokens = []lexer.Token{
