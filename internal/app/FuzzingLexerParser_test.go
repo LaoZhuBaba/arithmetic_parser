@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	lexer2 "github.com/LaoZhuBaba/arithmetic_parser/pkg/lexer"
-	parser2 "github.com/LaoZhuBaba/arithmetic_parser/pkg/parser"
+	lexer "github.com/LaoZhuBaba/arithmetic_parser/pkg/lexer"
+	parser "github.com/LaoZhuBaba/arithmetic_parser/pkg/parser"
 )
 
 // FuzzLexAndEval fuzzes the lexer+parser pipeline.
@@ -19,34 +19,34 @@ import (
 //  3. parser.Eval is deterministic for the same token stream (including right-associative operators like exponent)
 func FuzzLexAndEval(f *testing.F) {
 	// Lexer needs the operator vocabulary to recognize non-number Tokens.
-	defaultTokens := []lexer2.Token{
-		{Id: lexer2.Plus, Value: "+"},
-		{Id: lexer2.Minus, Value: "-"},
-		{Id: lexer2.Multiply, Value: "*"},
-		{Id: lexer2.Divide, Value: "/"},
-		{Id: lexer2.Exponent, Value: "^"},
-		{Id: lexer2.LParen, Value: "("},
-		{Id: lexer2.RParen, Value: ")"},
+	defaultTokens := []lexer.Token{
+		{Id: lexer.Plus, Value: "+"},
+		{Id: lexer.Minus, Value: "-"},
+		{Id: lexer.Multiply, Value: "*"},
+		{Id: lexer.Divide, Value: "/"},
+		{Id: lexer.Exponent, Value: "^"},
+		{Id: lexer.LParen, Value: "("},
+		{Id: lexer.RParen, Value: ")"},
 	}
 
-	operations := []parser2.Operation{
-		{Description: "Plus", TokenId: lexer2.Plus, Fn: func(a, b int) (int, error) { return a + b, nil }},
-		{Description: "Minus", TokenId: lexer2.Minus, Fn: func(a, b int) (int, error) { return a - b, nil }},
-		{Description: "Multiply", TokenId: lexer2.Multiply, Fn: func(a, b int) (int, error) { return a * b, nil }},
-		{Description: "Divide", TokenId: lexer2.Divide, Fn: func(a, b int) (int, error) {
+	operations := []parser.Operation{
+		{Description: "Plus", TokenId: lexer.Plus, Fn: func(a, b int) (int, error) { return a + b, nil }},
+		{Description: "Minus", TokenId: lexer.Minus, Fn: func(a, b int) (int, error) { return a - b, nil }},
+		{Description: "Multiply", TokenId: lexer.Multiply, Fn: func(a, b int) (int, error) { return a * b, nil }},
+		{Description: "Divide", TokenId: lexer.Divide, Fn: func(a, b int) (int, error) {
 			if b == 0 {
 				return 0, fmt.Errorf("division by zero")
 			}
 			return a / b, nil
 		}},
-		{Description: "Exponent", TokenId: lexer2.Exponent, Fn: func(a, b int) (int, error) { return int(math.Pow(float64(a), float64(b))), nil }},
+		{Description: "Exponent", TokenId: lexer.Exponent, Fn: func(a, b int) (int, error) { return int(math.Pow(float64(a), float64(b))), nil }},
 	}
-	opGroups := []parser2.OperationGroup{
-		{Tokens: []lexer2.TokenId{lexer2.Exponent}, Precedence: parser2.PrecedenceExponent, Associativity: parser2.RightAssociative},
-		{Tokens: []lexer2.TokenId{lexer2.Multiply, lexer2.Divide}, Precedence: parser2.PrecedenceMultiplyDivide, Associativity: parser2.LeftAssociative},
-		{Tokens: []lexer2.TokenId{lexer2.Plus, lexer2.Minus}, Precedence: parser2.PrecedencePlusMinus, Associativity: parser2.LeftAssociative},
+	opGroups := []parser.OperationGroup{
+		{Tokens: []lexer.TokenId{lexer.Exponent}, Precedence: parser.PrecedenceExponent, Associativity: parser.RightAssociative},
+		{Tokens: []lexer.TokenId{lexer.Multiply, lexer.Divide}, Precedence: parser.PrecedenceMultiplyDivide, Associativity: parser.LeftAssociative},
+		{Tokens: []lexer.TokenId{lexer.Plus, lexer.Minus}, Precedence: parser.PrecedencePlusMinus, Associativity: parser.LeftAssociative},
 	}
-	p := parser2.NewParserOp(operations, opGroups)
+	p := parser.NewParserOp(operations, opGroups)
 
 	// Seed corpus: valid, invalid, whitespacey, precedence, parentheses, associativity, etc.
 	seeds := []string{
@@ -86,7 +86,7 @@ func FuzzLexAndEval(f *testing.F) {
 			}
 		}()
 
-		lex := lexer2.NewLexer(s, defaultTokens)
+		lex := lexer.NewLexer(s, defaultTokens)
 		elems, err := lex.GetElementList()
 		if err != nil {
 			// For arbitrary strings, lexer errors are expected.
@@ -107,7 +107,7 @@ func FuzzLexAndEval(f *testing.F) {
 		}
 		normalized := b.String()
 
-		lex2 := lexer2.NewLexer(normalized, defaultTokens)
+		lex2 := lexer.NewLexer(normalized, defaultTokens)
 		elems2, err := lex2.GetElementList()
 		if err != nil {
 			t.Fatalf("GetElementList failed after normalization. input=%q normalized=%q err=%v", s, normalized, err)
