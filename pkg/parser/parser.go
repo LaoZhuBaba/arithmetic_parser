@@ -19,7 +19,7 @@ func (p Parser) getOperationByTokenId(t lexer.TokenId) (*Operation, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no operation defined with TokenId %d", t)
+	return nil, fmt.Errorf("%w: for TokenId: %d", errInvalidOperation, t)
 }
 
 // Eval accepts a list of elements representing an arithmetic expression
@@ -49,7 +49,7 @@ func (p Parser) Eval(e lexer.ElementList) (_ *int, err error) {
 
 	// After all operation groups have been processed, there should only be one element left: the result
 	if len(elementList) != 1 {
-		return nil, fmt.Errorf("invalid expression: %v", elementList)
+		return nil, fmt.Errorf("%w: %v", errInvalidExpression, elementList)
 	}
 
 	result, err := strconv.Atoi(elementList[0].TokenValue)
@@ -156,23 +156,26 @@ func (p Parser) evalArithmetic(elementList lexer.ElementList, precedence precede
 func (p Parser) getOperatorElements(idx int, elementList lexer.ElementList) (subExp lexer.ElementList, err error) {
 	// elements[idx] should be an operator TokenId so there must be a character before and after it
 	if idx < 1 || idx >= len(elementList)-1 {
-		return nil, fmt.Errorf("out of range with index %d and elements: %v", idx, elementList)
+		return nil, fmt.Errorf("%w: with index %d and elements: %v", errIndexOutOfRange, idx, elementList)
 	}
 
 	tok := elementList[idx].Token
 
 	op, err := p.getOperationByTokenId(tok)
 	if err != nil {
-		return nil, fmt.Errorf("invalid TokenId: %v", tok)
+		return nil, fmt.Errorf("%w: %v", errInvalidTokenId, tok)
 	}
 
 	switch {
 	case elementList[idx-1].Token != lexer.Number:
 		return nil, fmt.Errorf(
-			"invalid TokenId before %s: expected Number, got %v", op.Description, elementList[idx-1].Token)
+			"%w: before %s: expected Number, got %v",
+				errInvalidTokenId,  op.Description, elementList[idx-1].Token,
+			)
 	case elementList[idx+1].Token != lexer.Number:
 		return nil, fmt.Errorf(
-			"invalid TokenId after %s: expected Number, got %v", op.Description, elementList[idx+1].Token)
+			"%w: after %s: expected Number, got %v",
+				errInvalidTokenId, op.Description, elementList[idx+1].Token)
 	default:
 		return elementList[idx-1 : idx+2], nil
 	}

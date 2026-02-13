@@ -42,7 +42,7 @@ func (l Lexer) GetElementList() (elementList ElementList, err error) {
 		}
 
 		if c < '0' || c > '9' {
-			return nil, fmt.Errorf("invalid operator character: %c", c)
+			return nil, fmt.Errorf("%w: %c", errInvalidOperator, c)
 		}
 
 		// Handle number characters

@@ -50,18 +50,12 @@ func (el ElementList) FindRParen(lParenIdx int) (rParenIdx int, err error) {
 	var depth int
 
 	if lParenIdx < 0 || lParenIdx >= len(el) {
-		return 0, fmt.Errorf(
-			"invalid index %d: out of range for elements slice",
-			lParenIdx,
-		)
+		return 0, fmt.Errorf("%w: %d", errIndexOutOfRange, lParenIdx)
 	}
 
 	if el[lParenIdx].Token != LParen {
 		return 0, fmt.Errorf(
-			"invalid TokenId at index %d: expected LParen, got %v",
-			lParenIdx,
-			el[lParenIdx].Token,
-		)
+			"%w: at index %d: expected LParen, got %v", errInvalidTokenId, lParenIdx, el[lParenIdx].Token)
 	}
 
 	for i := lParenIdx + 1; i < len(el); i++ {
@@ -79,5 +73,5 @@ func (el ElementList) FindRParen(lParenIdx int) (rParenIdx int, err error) {
 		}
 	}
 
-	return 0, fmt.Errorf("unmatched parentheses")
+	return 0, errUnmatchedParen
 }
