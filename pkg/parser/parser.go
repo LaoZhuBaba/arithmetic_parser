@@ -24,7 +24,7 @@ func (p Parser) getOperationByTokenId(t lexer.TokenId) (*Operation, error) {
 
 // Eval accepts a list of elements representing an arithmetic expression
 // and returns the result as a pointer to an int.
-func (p Parser) Eval(e lexer.ElementList) (i *int, err error) {
+func (p Parser) Eval(e lexer.ElementList) (_ *int, err error) {
 	// Make a copy of the slice so we can modify it without affecting the original
 	// Fuzz testing requires that the slice be immutable.
 	elementList := make(lexer.ElementList, len(e))
@@ -39,8 +39,7 @@ func (p Parser) Eval(e lexer.ElementList) (i *int, err error) {
 	// operationGroups is the map of precedence levels to the operators that can be used in that level
 	// Each key is a precedence level that refers to a group of operators that have the same precedence
 	// and associativity.  For example, multiplication and division share the same precedence level called
-	// "multiplyDivide" and they are both left associative.  It is assumed that the first precedence
-	// to be evaluated will have a value of 0 and others will have consecutive values.
+	// "multiplyDivide" and they are both left associative.
 	for _, group := range p.OperationGroups {
 		elementList, err = p.evalArithmetic(elementList, group.Precedence)
 		if err != nil {
