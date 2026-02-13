@@ -9,16 +9,16 @@ import (
 )
 
 func Calculate(s string) error {
-
 	lx := lexer.NewLexer(s, config.Tokens)
 
 	elements, err := lx.GetElementList()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("lexer failed with error: %v", err)
+
 		return err
 	}
-	operations := config.Operations
-	pa := parser.NewParserOp(operations, config.OpGroup)
+
+	pa := parser.NewParserOp(config.Operations, config.OpGroup)
 
 	result, err := pa.Eval(elements)
 	if err != nil {
