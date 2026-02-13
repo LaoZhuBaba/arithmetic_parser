@@ -7,7 +7,7 @@ import (
 	"github.com/LaoZhuBaba/arithmetic_parser/pkg/lexer"
 )
 
-func NewParserOp(operations []Operation, opGroups []OperationGroup) (p Parser) {
+func NewParser(operations []Operation, opGroups []OperationGroup) (p Parser) {
 	p = Parser{Operations: operations, OperationGroups: opGroups}
 	return p
 }

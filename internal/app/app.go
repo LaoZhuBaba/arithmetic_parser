@@ -18,7 +18,7 @@ func Calculate(s string) error {
 		return err
 	}
 
-	pa := parser.NewParserOp(config.Operations, config.OpGroup)
+	pa := parser.NewParser(config.Operations, config.OpGroup)
 
 	result, err := pa.Eval(elements)
 	if err != nil {

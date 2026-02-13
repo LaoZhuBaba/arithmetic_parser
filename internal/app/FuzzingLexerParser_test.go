@@ -46,7 +46,7 @@ func FuzzLexAndEval(f *testing.F) {
 		{Tokens: []lexer.TokenId{lexer.Multiply, lexer.Divide}, Precedence: parser.PrecedenceMultiplyDivide, Associativity: parser.LeftAssociative},
 		{Tokens: []lexer.TokenId{lexer.Plus, lexer.Minus}, Precedence: parser.PrecedencePlusMinus, Associativity: parser.LeftAssociative},
 	}
-	p := parser.NewParserOp(operations, opGroups)
+	p := parser.NewParser(operations, opGroups)
 
 	// Seed corpus: valid, invalid, whitespacey, precedence, parentheses, associativity, etc.
 	seeds := []string{

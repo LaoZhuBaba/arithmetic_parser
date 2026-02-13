@@ -28,7 +28,7 @@ func newTestParser() Parser {
 		{Tokens: []lexer.TokenId{lexer.Multiply, lexer.Divide}, Precedence: PrecedenceMultiplyDivide, Associativity: LeftAssociative},
 		{Tokens: []lexer.TokenId{lexer.Plus, lexer.Minus}, Precedence: PrecedencePlusMinus, Associativity: LeftAssociative},
 	}
-	return NewParserOp(operations, opGroups)
+	return NewParser(operations, opGroups)
 }
 
 func ptrInt(v int) *int { return &v }
