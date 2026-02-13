@@ -7,12 +7,12 @@ import (
 	"github.com/LaoZhuBaba/arithmetic_parser/pkg/lexer"
 )
 
-func NewParserOp(operations []Operation, opGroups []OperationGroup) (p parserOp) {
-	p = parserOp{Operations: operations, OperationGroups: opGroups}
+func NewParserOp(operations []Operation, opGroups []OperationGroup) (p Parser) {
+	p = Parser{Operations: operations, OperationGroups: opGroups}
 	return p
 }
 
-func (p parserOp) getOperationByTokenId(t lexer.TokenId) (*Operation, error) {
+func (p Parser) getOperationByTokenId(t lexer.TokenId) (*Operation, error) {
 	for _, op := range p.Operations {
 		if op.TokenId == t {
 			return &op, nil
@@ -24,7 +24,7 @@ func (p parserOp) getOperationByTokenId(t lexer.TokenId) (*Operation, error) {
 
 // Eval accepts a list of elements representing an arithmetic expression
 // and returns the result as a pointer to an int.
-func (p parserOp) Eval(e lexer.ElementList) (i *int, err error) {
+func (p Parser) Eval(e lexer.ElementList) (i *int, err error) {
 	// Make a copy of the slice so we can modify it without affecting the original
 	// Fuzz testing requires that the slice be immutable.
 	elementList := make(lexer.ElementList, len(e))
@@ -62,7 +62,7 @@ func (p parserOp) Eval(e lexer.ElementList) (i *int, err error) {
 }
 
 // evalParen reduces parenthetical expressions to numbers, calling Eval() for subexpressions
-func (p parserOp) evalParen(elementList lexer.ElementList) (lexer.ElementList, error) {
+func (p Parser) evalParen(elementList lexer.ElementList) (lexer.ElementList, error) {
 	// Iterate until every parenthetical expression has been reduced to a number
 	for {
 		// It's not an error to find no left parenthesis.  Unbalanced parentheses are handled in findRParen()
@@ -93,7 +93,7 @@ func (p parserOp) evalParen(elementList lexer.ElementList) (lexer.ElementList, e
 }
 
 // evalArithmetic reduces arithmetic expressions to a single number element, calling Eval() for subexpressions.
-func (p parserOp) evalArithmetic(elementList lexer.ElementList, precedence precedence) (lexer.ElementList, error) {
+func (p Parser) evalArithmetic(elementList lexer.ElementList, precedence precedence) (lexer.ElementList, error) {
 	for {
 		var exprVal, lVal, rVal, idx int
 
@@ -154,7 +154,7 @@ func (p parserOp) evalArithmetic(elementList lexer.ElementList, precedence prece
 }
 
 // getOperatorElements returns the elements that make up an operator expression: [number, operator, number]
-func (p parserOp) getOperatorElements(idx int, elementList lexer.ElementList) (subExp lexer.ElementList, err error) {
+func (p Parser) getOperatorElements(idx int, elementList lexer.ElementList) (subExp lexer.ElementList, err error) {
 	// elements[idx] should be an operator TokenId so there must be a character before and after it
 	if idx < 1 || idx >= len(elementList)-1 {
 		return nil, fmt.Errorf("out of range with index %d and elements: %v", idx, elementList)

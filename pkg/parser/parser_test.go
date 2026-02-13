@@ -8,7 +8,7 @@ import (
 	"github.com/LaoZhuBaba/arithmetic_parser/pkg/lexer"
 )
 
-func newTestParser() parserOp {
+func newTestParser() Parser {
 	operations := []Operation{
 		{Description: "Plus", TokenId: lexer.Plus, Fn: func(a, b int) (int, error) { return a + b, nil }},
 		{Description: "Minus", TokenId: lexer.Minus, Fn: func(a, b int) (int, error) { return a - b, nil }},
